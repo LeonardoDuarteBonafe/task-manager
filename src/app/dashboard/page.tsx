@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { OccurrenceSection } from "@/components/tasks/occurrence-section";
+import { NotificationPermissionCard } from "@/components/notifications/notification-permission-card";
 import type { OccurrenceDto } from "@/components/tasks/types";
 import { AppShell } from "@/components/ui/app-shell";
 import { PageState } from "@/components/ui/page-state";
@@ -97,6 +98,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell subtitle={subtitle} title="Painel">
+      <NotificationPermissionCard />
       <OccurrenceSection
         actionLoadingId={actionLoadingId}
         emptyMessage="Nenhuma recorrencia vencida no momento."
