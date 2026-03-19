@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum RecurrenceType {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TaskStatus {
+  ACTIVE
+  ENDED
+}
+
+enum OccurrenceStatus {
+  PENDING
+  COMPLETED
+  IGNORED
+}
+
+enum HistoryAction {
+  CREATED
+  COMPLETED
+  IGNORED
+  NOTIFICATION_SENT
+  STATUS_CHANGED
+  TASK_ENDED
+}
+
+model User {
+  id                String                  @id @default(cuid())
+  name              String?
+  email             String                  @unique
+  emailVerified     DateTime?
+  image             String?
+  passwordHash      String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  tasks             Task[]
+  taskOccurrences   TaskOccurrence[]
+  occurrenceHistory TaskOccurrenceHistory[]
+  accounts          Account[]
+  sessions          Session[]
+}
+
+model Task {
+  id                          String          @id @default(cuid())
+  userId                      String
+  title                       String
+  notes                       String?
+  recurrenceType              RecurrenceType
+  weekdays                    Int[]
+  scheduledTime               String
+  timezone                    String          @default("America/Sao_Paulo")
+  startDate                   DateTime        @default(now())
+  endDate                     DateTime?
+  notificationRepeatMinutes   Int             @default(10)
+  maxOccurrences              Int?
+  status                      TaskStatus      @default(ACTIVE)
+  endedAt                     DateTime?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  user                        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrences                 TaskOccurrence[]
+
+  @@index([userId, status])
+  @@index([userId, recurrenceType])
+}
+
+model TaskOccurrence {
+  id                   String                  @id @default(cuid())
+  taskId               String
+  userId               String
+  scheduledAt          DateTime
+  status               OccurrenceStatus        @default(PENDING)
+  treatedAt            DateTime?
+  completedAt          DateTime?
+  ignoredAt            DateTime?
+  lastNotificationAt   DateTime?
+  notificationAttempts Int                     @default(0)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  task                 Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history              TaskOccurrenceHistory[]
+
+  @@unique([taskId, scheduledAt])
+  @@index([userId, status, scheduledAt])
+  @@index([taskId, status])
+}
+
+model TaskOccurrenceHistory {
+  id           String           @id @default(cuid())
+  occurrenceId String
+  userId       String?
+  action       HistoryAction
+  fromStatus   OccurrenceStatus?
+  toStatus     OccurrenceStatus?
+  metadata     Json?
+  actedAt      DateTime         @default(now())
+  occurrence   TaskOccurrence   @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([occurrenceId, actedAt])
+  @@index([userId, actedAt])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionToken])
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+}
