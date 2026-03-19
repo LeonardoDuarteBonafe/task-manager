@@ -23,7 +23,7 @@ export default function NewTaskPage() {
     }
   }, [status, router]);
 
-  const handleSubmit = async (values: TaskFormValues) => {
+  async function handleSubmit(values: TaskFormValues) {
     if (!userId) return;
     setError(null);
     setSubmitting(true);
@@ -50,20 +50,20 @@ export default function NewTaskPage() {
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
   if (status === "loading") {
     return (
-      <AppShell subtitle="Aguarde..." title="Nova task">
-        <PageState description="Carregando sessão..." title="Carregando" />
+      <AppShell subtitle="Aguarde..." title="Nova tarefa">
+        <PageState description="Carregando sessao..." title="Carregando" />
       </AppShell>
     );
   }
 
   return (
-    <AppShell subtitle="Defina uma tarefa recorrente para o MVP1." title="Nova task">
+    <AppShell subtitle="Defina uma nova tarefa recorrente." title="Nova tarefa">
       <Card>
-        <TaskForm error={error} onSubmit={handleSubmit} submitting={submitting} />
+        <TaskForm error={error} onSubmit={handleSubmit} submitting={submitting} submitLabel="Criar tarefa" />
       </Card>
     </AppShell>
   );

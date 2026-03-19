@@ -18,6 +18,8 @@ enum RecurrenceType {
 enum TaskStatus {
   ACTIVE
   ENDED
+  CANCELED
+  ABORTED
 }
 
 enum OccurrenceStatus {
@@ -35,6 +37,14 @@ enum HistoryAction {
   TASK_ENDED
 }
 
+enum TaskHistoryAction {
+  CREATED
+  UPDATED
+  ENDED
+  CANCELED
+  ABORTED
+}
+
 model User {
   id                String                  @id @default(cuid())
   name              String?
@@ -47,6 +57,7 @@ model User {
   tasks             Task[]
   taskOccurrences   TaskOccurrence[]
   occurrenceHistory TaskOccurrenceHistory[]
+  taskHistory       TaskHistory[]
   accounts          Account[]
   sessions          Session[]
 }
@@ -68,11 +79,28 @@ model Task {
   endedAt                     DateTime?
   createdAt                   DateTime        @default(now())
   updatedAt                   DateTime        @updatedAt
+  canceledAt                  DateTime?
+  abortedAt                   DateTime?
   user                        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences                 TaskOccurrence[]
+  history                     TaskHistory[]
 
   @@index([userId, status])
   @@index([userId, recurrenceType])
+}
+
+model TaskHistory {
+  id        String            @id @default(cuid())
+  taskId     String
+  userId     String?
+  action     TaskHistoryAction
+  metadata   Json?
+  actedAt    DateTime         @default(now())
+  task       Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, actedAt])
+  @@index([userId, actedAt])
 }
 
 model TaskOccurrence {

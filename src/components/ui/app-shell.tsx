@@ -13,9 +13,10 @@ type AppShellProps = {
 };
 
 const links = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/tasks/new", label: "Nova task" },
+  { href: "/dashboard", label: "Painel" },
+  { href: "/recorrencias", label: "Recorrencias" },
+  { href: "/tasks", label: "Tarefas" },
+  { href: "/tasks/new", label: "Nova tarefa" },
 ];
 
 export function AppShell({ title, subtitle, children }: AppShellProps) {

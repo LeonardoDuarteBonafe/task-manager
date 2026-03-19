@@ -9,6 +9,7 @@ import {
   normalizeRecurrenceWeekdays,
   parseScheduledTimeToMinutes,
 } from "./task-domain/recurrence";
+import { recordTaskHistory } from "./task-history";
 import type { UpdateTaskInput } from "./task-domain/types";
 
 export async function updateTask(input: UpdateTaskInput): Promise<Task> {
@@ -61,6 +62,17 @@ export async function updateTask(input: UpdateTaskInput): Promise<Task> {
         taskId: task.id,
         status: "PENDING",
         scheduledAt: { gte: new Date() },
+      },
+    });
+
+    await recordTaskHistory(tx, {
+      taskId: task.id,
+      userId: input.userId,
+      action: "UPDATED",
+      metadata: {
+        recurrenceType,
+        scheduledTime,
+        maxOccurrences,
       },
     });
 

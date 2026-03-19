@@ -29,6 +29,21 @@ export async function completeOccurrence(input: CompleteOccurrenceInput): Promis
       throw new DomainError("Only pending occurrences can be completed.");
     }
 
+    const fullOccurrence = await tx.taskOccurrence.findUnique({
+      where: { id: occurrence.id },
+      select: {
+        scheduledAt: true,
+      },
+    });
+
+    if (!fullOccurrence) {
+      throw new DomainError("Occurrence not found.");
+    }
+
+    if (fullOccurrence.scheduledAt.getTime() > completedAt.getTime()) {
+      throw new DomainError("Future occurrences cannot be completed.");
+    }
+
     const updated = await tx.taskOccurrence.update({
       where: { id: occurrence.id },
       data: {

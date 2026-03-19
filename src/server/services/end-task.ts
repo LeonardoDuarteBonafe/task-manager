@@ -1,57 +1,44 @@
-import type { Task } from "@prisma/client";
+import type { Task, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DomainError } from "./task-domain/errors";
+import { recordTaskHistory } from "./task-history";
 
-type EndTaskInput = {
+type ChangeTaskStatusInput = {
   taskId: string;
   userId: string;
-  endedAt?: Date;
+  actedAt?: Date;
 };
 
-type EndTaskResult = {
+type ChangeTaskStatusResult = {
   task: Task;
-  ignoredFutureOccurrences: number;
+  deletedFutureOccurrences: number;
 };
 
-export async function endTask(input: EndTaskInput): Promise<EndTaskResult> {
-  const endedAt = input.endedAt ?? new Date();
+async function transitionTaskStatus(
+  input: ChangeTaskStatusInput,
+  targetStatus: Extract<TaskStatus, "ENDED" | "CANCELED" | "ABORTED">,
+): Promise<ChangeTaskStatusResult> {
+  const actedAt = input.actedAt ?? new Date();
 
   return prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({
       where: { id: input.taskId },
-      select: {
-        id: true,
-        userId: true,
-        status: true,
-      },
     });
 
     if (!task || task.userId !== input.userId) {
       throw new DomainError("Task not found.");
     }
 
-    if (task.status === "ENDED") {
-      const endedTask = await tx.task.findUnique({ where: { id: input.taskId } });
-      if (!endedTask) {
-        throw new DomainError("Task not found.");
-      }
-      return { task: endedTask, ignoredFutureOccurrences: 0 };
+    if (task.status === targetStatus) {
+      return { task, deletedFutureOccurrences: 0 };
     }
-
-    const updatedTask = await tx.task.update({
-      where: { id: input.taskId },
-      data: {
-        status: "ENDED",
-        endedAt,
-      },
-    });
 
     const futurePendingOccurrences = await tx.taskOccurrence.findMany({
       where: {
         taskId: input.taskId,
         status: "PENDING",
         scheduledAt: {
-          gt: endedAt,
+          gt: actedAt,
         },
       },
       select: {
@@ -60,34 +47,50 @@ export async function endTask(input: EndTaskInput): Promise<EndTaskResult> {
     });
 
     if (futurePendingOccurrences.length > 0) {
-      await tx.taskOccurrence.updateMany({
+      await tx.taskOccurrence.deleteMany({
         where: {
           id: {
             in: futurePendingOccurrences.map((item) => item.id),
           },
         },
-        data: {
-          status: "IGNORED",
-          treatedAt: endedAt,
-          ignoredAt: endedAt,
-        },
-      });
-
-      await tx.taskOccurrenceHistory.createMany({
-        data: futurePendingOccurrences.map((occurrence) => ({
-          occurrenceId: occurrence.id,
-          userId: input.userId,
-          action: "TASK_ENDED",
-          fromStatus: "PENDING",
-          toStatus: "IGNORED",
-          actedAt: endedAt,
-        })),
       });
     }
 
+    const updatedTask = await tx.task.update({
+      where: { id: input.taskId },
+      data: {
+        status: targetStatus,
+        endedAt: targetStatus === "ENDED" ? actedAt : task.endedAt,
+        canceledAt: targetStatus === "CANCELED" ? actedAt : task.canceledAt,
+        abortedAt: targetStatus === "ABORTED" ? actedAt : task.abortedAt,
+      },
+    });
+
+    await recordTaskHistory(tx, {
+      taskId: updatedTask.id,
+      userId: input.userId,
+      action: targetStatus,
+      metadata: {
+        deletedFutureOccurrences: futurePendingOccurrences.length,
+      },
+      actedAt,
+    });
+
     return {
       task: updatedTask,
-      ignoredFutureOccurrences: futurePendingOccurrences.length,
+      deletedFutureOccurrences: futurePendingOccurrences.length,
     };
   });
+}
+
+export async function endTask(input: ChangeTaskStatusInput) {
+  return transitionTaskStatus(input, "ENDED");
+}
+
+export async function cancelTask(input: ChangeTaskStatusInput) {
+  return transitionTaskStatus(input, "CANCELED");
+}
+
+export async function abortTask(input: ChangeTaskStatusInput) {
+  return transitionTaskStatus(input, "ABORTED");
 }

@@ -1,4 +1,4 @@
-import type { RecurrenceType } from "@prisma/client";
+import type { RecurrenceType, TaskStatus } from "@prisma/client";
 
 export type CreateTaskInput = {
   userId: string;
@@ -42,6 +42,33 @@ export type ListOccurrencesInput = {
   userId: string;
   referenceDate?: Date;
   limit?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+export type RecurrenceFilterStatus =
+  | "OVERDUE"
+  | "UPCOMING"
+  | "OPEN"
+  | "COMPLETED"
+  | "IGNORED"
+  | "CANCELED"
+  | "ABORTED";
+
+export type ListRecurrencesInput = {
+  userId: string;
+  status?: RecurrenceFilterStatus;
+  dateFrom?: Date;
+  dateTo?: Date;
+  recurrenceType?: RecurrenceType;
+  sortOrder?: "oldest" | "newest";
+  page?: number;
+  pageSize?: number;
+};
+
+export type ListTasksInput = {
+  userId: string;
+  status?: TaskStatus;
   page?: number;
   pageSize?: number;
 };

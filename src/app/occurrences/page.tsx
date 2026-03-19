@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-import { OccurrencesPageClient } from "@/components/tasks/occurrences-page-client";
-import { PageState } from "@/components/ui/page-state";
+import { redirect } from "next/navigation";
 
-export default function OccurrencesPage() {
-  return (
-    <Suspense fallback={<PageState description="Carregando ocorrências..." title="Carregando" />}>
-      <OccurrencesPageClient />
-    </Suspense>
-  );
+export default function OccurrencesRedirectPage() {
+  redirect("/recorrencias");
 }

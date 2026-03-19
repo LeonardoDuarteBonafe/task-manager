@@ -5,6 +5,8 @@ export { getUpcomingOccurrences } from "./get-upcoming-occurrences";
 export { completeOccurrence } from "./complete-occurrence";
 export { ignoreOccurrence } from "./ignore-occurrence";
 export { endTask } from "./end-task";
+export { cancelTask } from "./end-task";
+export { abortTask } from "./end-task";
 export { getTasks } from "./get-tasks";
 export { listOccurrencesPaginated } from "./list-occurrences";
 export { updateTask } from "./update-task";

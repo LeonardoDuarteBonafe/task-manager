@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const submitCredentials = async (event: React.FormEvent<HTMLFormElement>) => {
+  async function submitCredentials(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setLoading(true);
@@ -34,7 +34,7 @@ export default function LoginPage() {
     }
 
     router.push("/dashboard");
-  };
+  }
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -47,7 +47,7 @@ export default function LoginPage() {
       <Card className="space-y-5">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">TaskManager</h1>
-          <p className="text-sm text-slate-600">Entre para acessar seu dashboard de tarefas recorrentes.</p>
+          <p className="text-sm text-slate-600">Entre para acessar seu painel de tarefas recorrentes.</p>
         </div>
 
         <form className="space-y-3" onSubmit={submitCredentials}>
@@ -86,11 +86,9 @@ export default function LoginPage() {
           Entrar com Google
         </Button>
 
-        <p className="text-center text-sm text-slate-500">
-          Ainda não tem acesso? Configure usuário no banco e depois faça login.
-        </p>
+        <p className="text-center text-sm text-slate-500">Ainda nao tem acesso? Configure um usuario no banco e depois faca login.</p>
         <Link className="block text-center text-sm text-slate-600 underline" href="/">
-          Voltar para a página inicial
+          Voltar para a pagina inicial
         </Link>
       </Card>
     </main>

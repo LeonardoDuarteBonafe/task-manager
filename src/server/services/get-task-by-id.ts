@@ -1,4 +1,3 @@
-import type { Task } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DomainError } from "./task-domain/errors";
 
@@ -7,9 +6,16 @@ type GetTaskByIdInput = {
   userId: string;
 };
 
-export async function getTaskById(input: GetTaskByIdInput): Promise<Task> {
+export async function getTaskById(input: GetTaskByIdInput) {
   const task = await prisma.task.findUnique({
     where: { id: input.taskId },
+    include: {
+      history: {
+        orderBy: {
+          actedAt: "desc",
+        },
+      },
+    },
   });
 
   if (!task || task.userId !== input.userId) {

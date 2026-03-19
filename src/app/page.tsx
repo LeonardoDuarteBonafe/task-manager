@@ -9,7 +9,7 @@ export default function HomePage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">TaskManager MVP1</h1>
           <p className="text-slate-600">
-            Gerencie tarefas recorrentes com foco em ocorrências vencidas, próximas ações e rotina simples.
+            Gerencie tarefas recorrentes com foco em recorrencias vencidas, proximas acoes e uma rotina simples.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -17,7 +17,7 @@ export default function HomePage() {
             <Button>Entrar</Button>
           </Link>
           <Link href="/dashboard">
-            <Button variant="secondary">Ir para dashboard</Button>
+            <Button variant="secondary">Ir para o painel</Button>
           </Link>
           <Link href="/tasks/new">
             <Button variant="ghost">Criar tarefa</Button>

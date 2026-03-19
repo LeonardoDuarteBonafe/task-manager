@@ -19,7 +19,7 @@ const createTaskSchema = z.object({
 
 const getTasksQuerySchema = z.object({
   userId: z.string().min(1),
-  status: z.enum(["ACTIVE", "ENDED"]).optional(),
+  status: z.enum(["ACTIVE", "ENDED", "CANCELED", "ABORTED"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });

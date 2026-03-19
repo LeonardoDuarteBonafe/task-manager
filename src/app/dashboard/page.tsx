@@ -46,62 +46,82 @@ export default function DashboardPage() {
     if (status === "authenticated") {
       void loadData();
     }
-  }, [status, loadData, router]);
+  }, [status, router, loadData]);
 
-  const handleOccurrenceAction = async (occurrenceId: string, action: "complete" | "ignore") => {
+  async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
     if (!userId) return;
     setActionLoadingId(occurrenceId);
     setError(null);
     try {
-      const endpoint = action === "complete" ? "complete" : "ignore";
-      await apiRequest(`/api/occurrences/${occurrenceId}/${endpoint}`, {
+      await apiRequest(`/api/occurrences/${occurrenceId}/${action === "complete" ? "complete" : "ignore"}`, {
         method: "POST",
         body: JSON.stringify({ userId }),
       });
       await loadData();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Ação não concluída.");
+      setError(requestError instanceof Error ? requestError.message : "Acao nao concluida.");
     } finally {
       setActionLoadingId(null);
     }
-  };
+  }
+
+  async function handleTaskLifecycle(taskId: string, action: "cancel" | "abort") {
+    if (!userId) return;
+    setActionLoadingId(taskId);
+    setError(null);
+    try {
+      await apiRequest(`/api/tasks/${taskId}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      await loadData();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Acao nao concluida.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
 
   const subtitle = useMemo(() => {
-    if (!session?.user?.email) return "Gerencie ocorrências vencidas e próximas.";
-    return `Usuário: ${session.user.email}`;
+    if (!session?.user?.email) return "Gerencie recorrencias vencidas e proximas.";
+    return `Usuario: ${session.user.email}`;
   }, [session?.user?.email]);
 
   if (status === "loading") {
     return (
-      <AppShell subtitle="Aguarde..." title="Dashboard">
-        <PageState description="Verificando sessão..." title="Carregando" />
+      <AppShell subtitle="Aguarde..." title="Painel">
+        <PageState description="Verificando sessao..." title="Carregando" />
       </AppShell>
     );
   }
 
   return (
-    <AppShell subtitle={subtitle} title="Dashboard">
+    <AppShell subtitle={subtitle} title="Painel">
       <OccurrenceSection
         actionLoadingId={actionLoadingId}
-        emptyMessage="Nenhuma ocorrência vencida no momento."
+        emptyMessage="Nenhuma recorrencia vencida no momento."
         error={error}
         loading={loading}
         occurrences={overdue}
+        onAbortTask={(taskId) => handleTaskLifecycle(taskId, "abort")}
+        onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
         onComplete={(id) => handleOccurrenceAction(id, "complete")}
         onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
-        title="Tarefas vencidas"
-        viewAllHref="/occurrences?context=overdue&page=1"
+        title="Recorrencias vencidas"
+        viewAllHref="/recorrencias?status=OVERDUE&page=1"
       />
       <OccurrenceSection
         actionLoadingId={actionLoadingId}
-        emptyMessage="Nenhuma ocorrência próxima encontrada."
+        emptyMessage="Nenhuma recorrencia proxima encontrada."
         error={error}
         loading={loading}
         occurrences={upcoming}
+        onAbortTask={(taskId) => handleTaskLifecycle(taskId, "abort")}
+        onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
         onComplete={(id) => handleOccurrenceAction(id, "complete")}
         onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
-        title="Próximas tarefas"
-        viewAllHref="/occurrences?context=upcoming&page=1"
+        title="Proximas recorrencias"
+        viewAllHref="/recorrencias?status=UPCOMING&page=1"
       />
     </AppShell>
   );

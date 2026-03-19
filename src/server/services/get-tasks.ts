@@ -1,27 +1,29 @@
-import type { Task, TaskStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-
-type GetTasksInput = {
-  userId: string;
-  status?: TaskStatus;
-  page?: number;
-  pageSize?: number;
-};
+import type { ListTasksInput } from "./task-domain/types";
 
 type GetTasksResult = {
-  items: Task[];
+  items: Prisma.TaskGetPayload<{
+    include: {
+      history: {
+        orderBy: {
+          actedAt: "desc";
+        };
+      };
+    };
+  }>[];
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
 };
 
-export async function getTasks(input: GetTasksInput): Promise<GetTasksResult> {
+export async function getTasks(input: ListTasksInput): Promise<GetTasksResult> {
   const page = Math.max(input.page ?? 1, 1);
   const pageSize = Math.max(input.pageSize ?? 10, 1);
   const skip = (page - 1) * pageSize;
 
-  const where = {
+  const where: Prisma.TaskWhereInput = {
     userId: input.userId,
     ...(input.status ? { status: input.status } : {}),
   };
@@ -29,7 +31,14 @@ export async function getTasks(input: GetTasksInput): Promise<GetTasksResult> {
   const [items, total] = await prisma.$transaction([
     prisma.task.findMany({
       where,
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      include: {
+        history: {
+          orderBy: {
+            actedAt: "desc",
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
       skip,
       take: pageSize,
     }),

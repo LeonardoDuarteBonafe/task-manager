@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { endTask } from "@/server/services";
+import { abortTask } from "@/server/services";
 import { handleApiError, ok, readJsonOrThrow } from "../../../_shared/http";
 
 const paramsSchema = z.object({
@@ -8,7 +8,7 @@ const paramsSchema = z.object({
 
 const bodySchema = z.object({
   userId: z.string().min(1),
-  endedAt: z.coerce.date().optional(),
+  actedAt: z.coerce.date().optional(),
 });
 
 type RouteContext = {
@@ -20,10 +20,10 @@ export async function POST(request: Request, context: RouteContext) {
     const params = paramsSchema.parse(await context.params);
     const body = bodySchema.parse(await readJsonOrThrow(request));
 
-    const result = await endTask({
+    const result = await abortTask({
       taskId: params.id,
       userId: body.userId,
-      actedAt: body.endedAt,
+      actedAt: body.actedAt,
     });
 
     return ok(result);

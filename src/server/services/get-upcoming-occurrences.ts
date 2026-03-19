@@ -6,8 +6,7 @@ const DEFAULT_LIMIT = 100;
 export async function getUpcomingOccurrences(input: ListOccurrencesInput) {
   const result = await listOccurrencesPaginated({
     userId: input.userId,
-    context: "upcoming",
-    referenceDate: input.referenceDate,
+    status: "UPCOMING",
     page: input.page ?? 1,
     pageSize: input.pageSize ?? input.limit ?? DEFAULT_LIMIT,
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TaskForm, type TaskFormValues } from "@/components/tasks/task-form";
@@ -22,29 +22,27 @@ export default function EditTaskPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadTask = useCallback(async () => {
-    if (!userId || !taskId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiRequest<TaskDto>(`/api/tasks/${taskId}?userId=${encodeURIComponent(userId)}`);
-      setTask(data);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Falha ao carregar tarefa.");
-    } finally {
-      setLoading(false);
-    }
-  }, [taskId, userId]);
-
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace("/login");
       return;
     }
-    if (status === "authenticated" && taskId) {
-      void loadTask();
-    }
-  }, [status, router, taskId, loadTask]);
+
+    if (status !== "authenticated" || !userId || !taskId) return;
+
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await apiRequest<TaskDto>(`/api/tasks/${taskId}?userId=${encodeURIComponent(userId)}`);
+        setTask(data);
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : "Falha ao carregar tarefa.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [status, router, taskId, userId]);
 
   const initialValues = useMemo(() => {
     if (!task) return undefined;
@@ -61,7 +59,7 @@ export default function EditTaskPage() {
     } satisfies Partial<TaskFormValues>;
   }, [task]);
 
-  const handleSubmit = async (values: TaskFormValues) => {
+  async function handleSubmit(values: TaskFormValues) {
     if (!userId || !taskId) return;
     setSubmitting(true);
     setError(null);
@@ -88,11 +86,11 @@ export default function EditTaskPage() {
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
   if (status === "loading" || loading) {
     return (
-      <AppShell subtitle="Aguarde..." title="Editar task">
+      <AppShell subtitle="Aguarde..." title="Editar tarefa">
         <PageState description="Carregando tarefa..." title="Carregando" />
       </AppShell>
     );
@@ -100,16 +98,22 @@ export default function EditTaskPage() {
 
   if (!task) {
     return (
-      <AppShell subtitle="Editar task" title="Editar task">
+      <AppShell subtitle="Editar tarefa" title="Editar tarefa">
         <PageState description={error ?? "Tarefa nao encontrada."} title="Erro" />
       </AppShell>
     );
   }
 
   return (
-    <AppShell subtitle="Atualize os dados da tarefa." title="Editar task">
+    <AppShell subtitle="Atualize os dados da tarefa." title="Editar tarefa">
       <Card>
-        <TaskForm error={error} initialValues={initialValues} onSubmit={handleSubmit} submitLabel="Salvar alteracoes" submitting={submitting} />
+        <TaskForm
+          error={error}
+          initialValues={initialValues}
+          onSubmit={handleSubmit}
+          submitLabel="Salvar alteracoes"
+          submitting={submitting}
+        />
       </Card>
     </AppShell>
   );
