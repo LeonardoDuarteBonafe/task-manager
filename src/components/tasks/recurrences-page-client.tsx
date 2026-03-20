@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -11,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { apiRequest } from "@/lib/http-client";
+import { OccurrenceDialog } from "./occurrence-dialog";
 import { OccurrenceItem } from "./occurrence-item";
 import type { OccurrencePageDto } from "./types";
 
@@ -32,6 +32,7 @@ export function RecurrencesPageClient() {
   const userId = session?.user?.id;
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
+  const selectedOccurrenceId = searchParams.get("occurrenceId");
   const [filters, setFilters] = useState<FilterState>({
     status: searchParams.get("status") ?? "",
     dateFrom: searchParams.get("dateFrom") ?? "",
@@ -103,6 +104,18 @@ export function RecurrencesPageClient() {
     router.push(`${pathname}?${query.toString()}`);
   }
 
+  function openOccurrence(occurrenceId: string) {
+    const query = new URLSearchParams(searchParams.toString());
+    query.set("occurrenceId", occurrenceId);
+    router.push(`${pathname}?${query.toString()}`);
+  }
+
+  function closeOccurrence() {
+    const query = new URLSearchParams(searchParams.toString());
+    query.delete("occurrenceId");
+    router.push(query.size > 0 ? `${pathname}?${query.toString()}` : pathname);
+  }
+
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
     if (!userId) return;
     setActionLoadingId(occurrenceId);
@@ -141,45 +154,58 @@ export function RecurrencesPageClient() {
   const totalPages = data?.totalPages ?? 1;
 
   return (
-    <AppShell subtitle="Use filtros para explorar as recorrencias geradas." title="Recorrencias">
+    <AppShell subtitle="Filtre, abra detalhes em modal e acompanhe o historico de cada recorrencia." title="Recorrencias">
       <Card className="space-y-4">
         <div className="grid gap-4 md:grid-cols-5">
-          <Select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-            <option value="">Todos os status</option>
-            <option value="OVERDUE">Vencidas</option>
-            <option value="UPCOMING">Proximas</option>
-            <option value="OPEN">Abertas</option>
-            <option value="COMPLETED">Concluidas</option>
-            <option value="IGNORED">Ignoradas</option>
-            <option value="CANCELED">Canceladas</option>
-            <option value="ABORTED">Abortadas</option>
-          </Select>
-          <Input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} />
-          <Input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))} />
-          <Select
-            value={filters.recurrenceType}
-            onChange={(event) => setFilters((current) => ({ ...current, recurrenceType: event.target.value }))}
-          >
-            <option value="">Todos os tipos</option>
-            <option value="ONCE">Uma vez</option>
-            <option value="DAILY">Diariamente</option>
-            <option value="WEEKLY">Semanalmente</option>
-            <option value="MONTHLY">Mensalmente</option>
-          </Select>
-          <Select value={filters.sortOrder} onChange={(event) => setFilters((current) => ({ ...current, sortOrder: event.target.value as "oldest" | "newest" }))}>
-            <option value="oldest">Mais antigas</option>
-            <option value="newest">Mais novas</option>
-          </Select>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
+            <Select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+              <option value="">Todos os status</option>
+              <option value="OVERDUE">Vencidas</option>
+              <option value="UPCOMING">Proximas</option>
+              <option value="OPEN">Abertas</option>
+              <option value="COMPLETED">Concluidas</option>
+              <option value="IGNORED">Ignoradas</option>
+              <option value="CANCELED">Canceladas</option>
+              <option value="ABORTED">Abortadas</option>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Desde</label>
+            <Input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Ate</label>
+            <Input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Tipo</label>
+            <Select
+              value={filters.recurrenceType}
+              onChange={(event) => setFilters((current) => ({ ...current, recurrenceType: event.target.value }))}
+            >
+              <option value="">Todos os tipos</option>
+              <option value="ONCE">Uma vez</option>
+              <option value="DAILY">Diariamente</option>
+              <option value="WEEKLY">Semanalmente</option>
+              <option value="MONTHLY">Mensalmente</option>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Ordenacao</label>
+            <Select value={filters.sortOrder} onChange={(event) => setFilters((current) => ({ ...current, sortOrder: event.target.value as "oldest" | "newest" }))}>
+              <option value="oldest">Mais antigas</option>
+              <option value="newest">Mais novas</option>
+            </Select>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button type="button" onClick={applyFilters}>
             Aplicar filtros
           </Button>
-          <Link href="/recorrencias">
-            <Button type="button" variant="secondary">
-              Limpar
-            </Button>
-          </Link>
+          <Button onClick={() => router.push("/recorrencias")} type="button" variant="secondary">
+            Limpar
+          </Button>
         </div>
       </Card>
 
@@ -190,35 +216,38 @@ export function RecurrencesPageClient() {
         ? items.map((occurrence) => (
             <OccurrenceItem
               key={occurrence.id}
-              occurrence={occurrence}
               loadingActionId={actionLoadingId}
+              occurrence={occurrence}
               onAbortTask={(taskId) => handleTaskLifecycle(taskId, "abort")}
               onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
               onComplete={(id) => handleOccurrenceAction(id, "complete")}
               onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
+              onOpen={openOccurrence}
             />
           ))
         : null}
 
       {!loading && !error && data ? (
         <Card className="flex items-center justify-between">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Pagina {data.page} de {data.totalPages} ({data.total} recorrencias)
           </p>
           <div className="flex gap-2">
-            <Link href={`/recorrencias?${buildPageQuery(searchParams, Math.max(1, page - 1))}`}>
-              <Button disabled={page <= 1} variant="secondary">
-                Anterior
-              </Button>
-            </Link>
-            <Link href={`/recorrencias?${buildPageQuery(searchParams, Math.min(totalPages, page + 1))}`}>
-              <Button disabled={page >= totalPages} variant="secondary">
-                Proxima
-              </Button>
-            </Link>
+            <Button disabled={page <= 1} onClick={() => router.push(`/recorrencias?${buildPageQuery(searchParams, Math.max(1, page - 1))}`)} variant="secondary">
+              Anterior
+            </Button>
+            <Button
+              disabled={page >= totalPages}
+              onClick={() => router.push(`/recorrencias?${buildPageQuery(searchParams, Math.min(totalPages, page + 1))}`)}
+              variant="secondary"
+            >
+              Proxima
+            </Button>
           </div>
         </Card>
       ) : null}
+
+      <OccurrenceDialog occurrenceId={selectedOccurrenceId} onClose={closeOccurrence} open={Boolean(selectedOccurrenceId)} userId={userId ?? ""} />
     </AppShell>
   );
 }
@@ -226,6 +255,7 @@ export function RecurrencesPageClient() {
 function buildPageQuery(searchParams: URLSearchParams, page: number) {
   const query = new URLSearchParams(searchParams.toString());
   query.set("page", String(page));
+  query.delete("occurrenceId");
   if (!query.has("sortOrder")) query.set("sortOrder", "oldest");
   return query.toString();
 }

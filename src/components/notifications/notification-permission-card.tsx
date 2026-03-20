@@ -98,8 +98,8 @@ export function NotificationPermissionCard() {
     <Card className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">Notificacoes</h2>
-          <p className="text-sm text-slate-600">{message}</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Notificacoes</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{message}</p>
         </div>
         <span
           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getBadgeClasses(permission)}`}
@@ -108,13 +108,13 @@ export function NotificationPermissionCard() {
         </span>
       </div>
 
-      <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <span className="font-medium text-slate-900">Navegador:</span>{" "}
+      <div className="grid gap-2 text-sm text-slate-600 dark:text-slate-400 sm:grid-cols-2">
+        <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">
+          <span className="font-medium text-slate-900 dark:text-slate-100">Navegador:</span>{" "}
           {notificationSupported ? "suportado" : "nao suportado"}
         </div>
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <span className="font-medium text-slate-900">Service worker:</span>{" "}
+        <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">
+          <span className="font-medium text-slate-900 dark:text-slate-100">Service worker:</span>{" "}
           {serviceWorkerSupported ? "disponivel" : "indisponivel"}
         </div>
       </div>

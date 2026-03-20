@@ -10,6 +10,12 @@ export function formatDateTime(dateIso: string): string {
   }).format(date);
 }
 
+export function formatTime(dateIso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeStyle: "short",
+  }).format(new Date(dateIso));
+}
+
 export function formatDate(dateIso: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
@@ -45,6 +51,25 @@ export function occurrenceStatusLabel(status: "PENDING" | "COMPLETED" | "IGNORED
   if (status === "COMPLETED") return "Concluida";
   if (status === "IGNORED") return "Ignorada";
   return new Date(scheduledAt).getTime() < Date.now() ? "Vencida" : "Proxima";
+}
+
+export function occurrenceActionLabel(action: string): string {
+  switch (action) {
+    case "CREATED":
+      return "Criada";
+    case "COMPLETED":
+      return "Concluida";
+    case "IGNORED":
+      return "Ignorada";
+    case "NOTIFICATION_SENT":
+      return "Notificacao enviada";
+    case "STATUS_CHANGED":
+      return "Status alterado";
+    case "TASK_ENDED":
+      return "Tarefa finalizada";
+    default:
+      return action;
+  }
 }
 
 export function taskHistoryActionLabel(action: string): string {

@@ -75,6 +75,7 @@ model Task {
   endDate                     DateTime?
   notificationRepeatMinutes   Int             @default(10)
   maxOccurrences              Int?
+  isFavorite                  Boolean         @default(false)
   status                      TaskStatus      @default(ACTIVE)
   endedAt                     DateTime?
   createdAt                   DateTime        @default(now())

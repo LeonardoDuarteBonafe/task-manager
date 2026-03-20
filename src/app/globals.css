@@ -4,9 +4,26 @@
 
 :root {
   color-scheme: light;
+  --page-bg: #f8fafc;
+  --page-text: #0f172a;
+  --page-accent: radial-gradient(circle at top right, #e2e8f0 0%, transparent 45%);
+}
+
+.dark {
+  color-scheme: dark;
+  --page-bg: #020617;
+  --page-text: #e2e8f0;
+  --page-accent: radial-gradient(circle at top right, rgba(37, 99, 235, 0.18) 0%, transparent 45%);
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
-  background-image: radial-gradient(circle at top right, #e2e8f0 0%, transparent 45%);
+  @apply antialiased transition-colors duration-200;
+  background-color: var(--page-bg);
+  color: var(--page-text);
+  background-image: var(--page-accent);
 }

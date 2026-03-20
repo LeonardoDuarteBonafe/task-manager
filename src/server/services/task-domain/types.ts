@@ -69,6 +69,7 @@ export type ListRecurrencesInput = {
 export type ListTasksInput = {
   userId: string;
   status?: TaskStatus;
+  favorite?: boolean;
   page?: number;
   pageSize?: number;
 };

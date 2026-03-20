@@ -1,10 +1,5 @@
 const STATIC_CACHE = "taskmanager-static-v1";
-const STATIC_ASSETS = [
-  "/",
-  "/manifest.webmanifest",
-  "/icons/icon-192.svg",
-  "/icons/icon-512.svg",
-];
+const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -31,6 +26,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const requestUrl = new URL(event.request.url);
+  const isStaticAsset =
+    requestUrl.pathname.startsWith("/_next/static/") ||
+    requestUrl.pathname.startsWith("/icons/") ||
+    requestUrl.pathname === "/manifest.webmanifest";
+
+  if (!isStaticAsset) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -47,7 +53,7 @@ self.addEventListener("fetch", (event) => {
 
           return response;
         })
-        .catch(() => caches.match("/"));
+        .catch(() => caches.match(event.request));
     }),
   );
 });

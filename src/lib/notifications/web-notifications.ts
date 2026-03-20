@@ -27,22 +27,49 @@ export async function getNotificationServiceWorkerRegistration() {
     return null;
   }
 
-  return navigator.serviceWorker.ready;
+  const registration = await navigator.serviceWorker.getRegistration();
+
+  if (registration) {
+    return registration;
+  }
+
+  const readyOrTimeout = await Promise.race([
+    navigator.serviceWorker.ready.then((readyRegistration) => readyRegistration),
+    new Promise<null>((resolve) => {
+      window.setTimeout(() => resolve(null), 1200);
+    }),
+  ]);
+
+  return readyOrTimeout;
 }
 
 export async function showNotificationPreview(title: string, body: string) {
-  const registration = await getNotificationServiceWorkerRegistration();
-
-  if (!registration || getNotificationPermission() !== "granted") {
+  if (getNotificationPermission() !== "granted") {
     return false;
   }
 
-  await registration.showNotification(title, {
-    body,
-    icon: "/icons/icon-192.svg",
-    badge: "/icons/icon-192.svg",
-    tag: "taskmanager-preview",
-  });
+  const registration = await getNotificationServiceWorkerRegistration();
 
-  return true;
+  if (registration) {
+    await registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.svg",
+      badge: "/icons/icon-192.svg",
+      tag: "taskmanager-preview",
+    });
+
+    return true;
+  }
+
+  if (typeof window !== "undefined" && "Notification" in window) {
+    new Notification(title, {
+      body,
+      icon: "/icons/icon-192.svg",
+      tag: "taskmanager-preview",
+    });
+
+    return true;
+  }
+
+  return false;
 }

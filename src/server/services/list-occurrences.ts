@@ -14,6 +14,7 @@ type ListOccurrencesPaginatedResult = {
           scheduledTime: true;
           weekdays: true;
           timezone: true;
+          isFavorite: true;
           status: true;
           updatedAt: true;
           endedAt: true;
@@ -119,6 +120,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
             scheduledTime: true,
             weekdays: true,
             timezone: true,
+            isFavorite: true,
             status: true,
             updatedAt: true,
             endedAt: true,

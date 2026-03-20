@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusLabel } from "./format";
@@ -9,54 +8,68 @@ type TaskItemProps = {
   onEndTask: (taskId: string) => Promise<void>;
   onCancelTask: (taskId: string) => Promise<void>;
   onAbortTask: (taskId: string) => Promise<void>;
+  onToggleFavorite: (taskId: string, isFavorite: boolean) => Promise<void>;
+  onOpen: (taskId: string, mode?: "view" | "edit") => void;
   loadingTaskId?: string | null;
 };
 
-export function TaskItem({ task, onEndTask, onCancelTask, onAbortTask, loadingTaskId }: TaskItemProps) {
+export function TaskItem({
+  task,
+  onEndTask,
+  onCancelTask,
+  onAbortTask,
+  onToggleFavorite,
+  onOpen,
+  loadingTaskId,
+}: TaskItemProps) {
   const isLoading = loadingTaskId === task.id;
+  const latestHistory = task.history[0];
 
   return (
     <Card className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">{task.title}</h3>
-          {task.notes ? <p className="mt-1 text-sm text-slate-600">{task.notes}</p> : null}
+        <button className="min-w-0 text-left" onClick={() => onOpen(task.id, "view")} type="button">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{recurrenceLabel(task)}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-500">{task.scheduledTime}</p>
+        </button>
+
+        <div className="flex flex-col items-end gap-2">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+            {taskStatusLabel(task.status)}
+          </span>
+          <Button
+            className="px-3 py-1 text-xs"
+            disabled={isLoading}
+            onClick={() => onToggleFavorite(task.id, !task.isFavorite)}
+            type="button"
+            variant={task.isFavorite ? "secondary" : "ghost"}
+          >
+            {task.isFavorite ? "Favorita" : "Favoritar"}
+          </Button>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-          {taskStatusLabel(task.status)}
-        </span>
       </div>
 
-      <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-        <p>Recorrencia: {recurrenceLabel(task)}</p>
-        <p>Horario: {task.scheduledTime}</p>
+      <div className="grid gap-2 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
         <p>Criada em: {formatDateTime(task.createdAt)}</p>
         <p>Ultima edicao: {formatDateTime(task.updatedAt)}</p>
-        <p>Finalizada em: {task.endedAt ? formatDateTime(task.endedAt) : "Nao finalizada"}</p>
-        <p>Cancelada em: {task.canceledAt ? formatDateTime(task.canceledAt) : "Nao cancelada"}</p>
-        <p>Abortada em: {task.abortedAt ? formatDateTime(task.abortedAt) : "Nao abortada"}</p>
         <p>Limite maximo: {task.maxOccurrences ?? "Infinito"}</p>
+        <p>Favorita: {task.isFavorite ? "Sim" : "Nao"}</p>
       </div>
 
-      {task.history.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-800">Historico relevante</p>
-          <div className="space-y-1">
-            {task.history.slice(0, 5).map((historyItem) => (
-              <p className="text-sm text-slate-600" key={historyItem.id}>
-                {taskHistoryActionLabel(historyItem.action)} em {formatDateTime(historyItem.actedAt)}
-              </p>
-            ))}
-          </div>
-        </div>
+      {latestHistory ? (
+        <p className="text-sm text-slate-500 dark:text-slate-500">
+          Ultima alteracao: {taskHistoryActionLabel(latestHistory.action)} em {formatDateTime(latestHistory.actedAt)}
+        </p>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <Link href={`/tasks/${task.id}/edit`}>
-          <Button type="button" variant="secondary">
-            Editar
-          </Button>
-        </Link>
+        <Button onClick={() => onOpen(task.id, "edit")} type="button" variant="secondary">
+          Editar
+        </Button>
+        <Button onClick={() => onOpen(task.id, "view")} type="button" variant="ghost">
+          Ver detalhes
+        </Button>
         {task.status === "ACTIVE" ? (
           <>
             <Button disabled={isLoading} onClick={() => onEndTask(task.id)} type="button" variant="secondary">

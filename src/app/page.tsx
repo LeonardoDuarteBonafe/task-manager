@@ -19,7 +19,7 @@ export default function HomePage() {
           <Link href="/dashboard">
             <Button variant="secondary">Ir para o painel</Button>
           </Link>
-          <Link href="/tasks/new">
+          <Link href="/tasks?modal=create">
             <Button variant="ghost">Criar tarefa</Button>
           </Link>
         </div>

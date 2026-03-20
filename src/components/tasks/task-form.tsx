@@ -78,7 +78,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="title">
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="title">
           Nome da tarefa
         </label>
         <Input
@@ -91,7 +91,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="notes">
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="notes">
           Notas
         </label>
         <Textarea
@@ -105,7 +105,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="startDate">
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="startDate">
             Data inicial
           </label>
           <Input
@@ -117,7 +117,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="scheduledTime">
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="scheduledTime">
             Horario
           </label>
           <Input
@@ -131,7 +131,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="recurrenceType">
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="recurrenceType">
           Recorrencia
         </label>
         <Select
@@ -154,13 +154,17 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
 
       {isWeekly ? (
         <div>
-          <p className="mb-2 block text-sm font-medium text-slate-700">Dias da semana</p>
+          <p className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Dias da semana</p>
           <div className="flex flex-wrap gap-2">
             {weekdayOptions.map((day) => {
               const active = values.weekdays.includes(day.value);
               return (
                 <button
-                  className={`rounded-lg border px-3 py-2 text-sm ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    active
+                      ? "border-slate-900 bg-slate-900 text-white dark:border-blue-600 dark:bg-blue-600"
+                      : "border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                  }`}
                   key={day.value}
                   onClick={() => toggleWeekday(day.value)}
                   type="button"
@@ -175,7 +179,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="endDate">
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="endDate">
             Data final (opcional)
           </label>
           <Input
@@ -186,7 +190,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="notificationRepeatMinutes">
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="notificationRepeatMinutes">
             Intervalo notificacao (min)
           </label>
           <Input
@@ -203,7 +207,7 @@ export function TaskForm({ submitting, error, onSubmit, submitLabel = "Salvar", 
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="maxOccurrences">
+          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="maxOccurrences">
             Limite maximo de repeticoes
           </label>
           <Input

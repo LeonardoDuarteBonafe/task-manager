@@ -18,6 +18,7 @@ export type TaskDto = {
   endDate: string | null;
   notificationRepeatMinutes: number;
   maxOccurrences: number | null;
+  isFavorite: boolean;
   status: "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED";
   createdAt: string;
   updatedAt: string;
@@ -46,6 +47,7 @@ export type OccurrenceDto = {
     scheduledTime: string;
     weekdays: number[];
     timezone: string;
+    isFavorite: boolean;
     status: "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED";
     updatedAt: string;
     endedAt: string | null;

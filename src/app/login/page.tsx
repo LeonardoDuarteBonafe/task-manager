@@ -29,7 +29,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (!result || result.error) {
-      setError("Falha no login com e-mail e senha.");
+      setError("Nao foi possivel entrar. Revise o e-mail e a senha.");
       return;
     }
 
@@ -46,13 +46,13 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-8">
       <Card className="space-y-5">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">TaskManager</h1>
-          <p className="text-sm text-slate-600">Entre para acessar seu painel de tarefas recorrentes.</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">TaskManager</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Entre para acessar seu painel de tarefas recorrentes.</p>
         </div>
 
         <form className="space-y-3" onSubmit={submitCredentials}>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="email">
               E-mail
             </label>
             <Input
@@ -65,7 +65,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="password">
               Senha
             </label>
             <Input
@@ -86,10 +86,17 @@ export default function LoginPage() {
           Entrar com Google
         </Button>
 
-        <p className="text-center text-sm text-slate-500">Ainda nao tem acesso? Configure um usuario no banco e depois faca login.</p>
-        <Link className="block text-center text-sm text-slate-600 underline" href="/">
-          Voltar para a pagina inicial
-        </Link>
+        <div className="space-y-2 text-center text-sm">
+          <Link className="block text-slate-600 underline dark:text-slate-300" href="/cadastro">
+            Criar conta
+          </Link>
+          <Link className="block text-slate-600 underline dark:text-slate-300" href="/recuperar-senha">
+            Esqueci minha senha
+          </Link>
+          <Link className="block text-slate-600 underline dark:text-slate-300" href="/">
+            Voltar para a pagina inicial
+          </Link>
+        </div>
       </Card>
     </main>
   );

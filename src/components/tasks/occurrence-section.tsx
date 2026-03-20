@@ -14,6 +14,7 @@ type OccurrenceSectionProps = {
   onIgnore: (id: string) => Promise<void>;
   onCancelTask?: (taskId: string) => Promise<void>;
   onAbortTask?: (taskId: string) => Promise<void>;
+  onOpen?: (id: string) => void;
   viewAllHref?: string;
 };
 
@@ -28,14 +29,15 @@ export function OccurrenceSection({
   onIgnore,
   onCancelTask,
   onAbortTask,
+  onOpen,
   viewAllHref,
 }: OccurrenceSectionProps) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
         {viewAllHref ? (
-          <Link className="text-sm font-medium text-slate-700 underline hover:text-slate-900" href={viewAllHref}>
+          <Link className="text-sm font-medium text-slate-700 underline hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100" href={viewAllHref}>
             Ver todas
           </Link>
         ) : null}
@@ -53,6 +55,7 @@ export function OccurrenceSection({
               onCancelTask={onCancelTask}
               onComplete={onComplete}
               onIgnore={onIgnore}
+              onOpen={onOpen}
             />
           ))
         : null}
