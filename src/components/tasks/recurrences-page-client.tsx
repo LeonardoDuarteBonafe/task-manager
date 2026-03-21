@@ -35,7 +35,7 @@ export function RecurrencesPageClient() {
   const isMockMode = isForcedUser(session?.user);
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
-  const selectedOccurrenceId = searchParams.get("occurrenceId");
+  const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     status: searchParams.get("status") ?? "",
     dateFrom: searchParams.get("dateFrom") ?? "",
@@ -123,18 +123,6 @@ export function RecurrencesPageClient() {
     if (filters.dateTo) query.set("dateTo", filters.dateTo);
     if (filters.recurrenceType) query.set("recurrenceType", filters.recurrenceType);
     router.push(`${pathname}?${query.toString()}`);
-  }
-
-  function openOccurrence(occurrenceId: string) {
-    const query = new URLSearchParams(searchParams.toString());
-    query.set("occurrenceId", occurrenceId);
-    router.push(`${pathname}?${query.toString()}`);
-  }
-
-  function closeOccurrence() {
-    const query = new URLSearchParams(searchParams.toString());
-    query.delete("occurrenceId");
-    router.push(query.size > 0 ? `${pathname}?${query.toString()}` : pathname);
   }
 
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
@@ -293,7 +281,7 @@ export function RecurrencesPageClient() {
               onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
               onComplete={(id) => handleOccurrenceAction(id, "complete")}
               onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
-              onOpen={openOccurrence}
+              onOpen={setSelectedOccurrenceId}
             />
           ))
         : null}
@@ -320,7 +308,7 @@ export function RecurrencesPageClient() {
 
       <OccurrenceDialog
         occurrenceId={selectedOccurrenceId}
-        onClose={closeOccurrence}
+        onClose={() => setSelectedOccurrenceId(null)}
         open={Boolean(selectedOccurrenceId)}
         userId={userId ?? ""}
         initialOccurrence={mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null}
@@ -333,7 +321,6 @@ export function RecurrencesPageClient() {
 function buildPageQuery(searchParams: URLSearchParams, page: number) {
   const query = new URLSearchParams(searchParams.toString());
   query.set("page", String(page));
-  query.delete("occurrenceId");
   if (!query.has("sortOrder")) query.set("sortOrder", "oldest");
   return query.toString();
 }

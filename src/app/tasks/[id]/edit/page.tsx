@@ -5,6 +5,6 @@ type EditTaskPageProps = {
 };
 
 export default async function EditTaskPage({ params }: EditTaskPageProps) {
-  const { id } = await params;
-  redirect(`/tasks?modal=edit&taskId=${id}`);
+  await params;
+  redirect("/tasks");
 }

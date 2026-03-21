@@ -18,6 +18,12 @@ import type { TaskPageDto } from "./types";
 
 const PAGE_SIZE = 10;
 
+type ModalState = {
+  open: boolean;
+  mode: "create" | "view" | "edit";
+  taskId: string | null;
+};
+
 export function TasksPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,15 +33,14 @@ export function TasksPageClient() {
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
   const statusFilter = searchParams.get("status") ?? "";
-  const modalMode = searchParams.get("modal");
-  const taskId = searchParams.get("taskId");
 
   const [tasksData, setTasksData] = useState<TaskPageDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState(statusFilter);
-  const [mockTasks, setMockTasks] = useState(tasksData?.items ?? []);
+  const [mockTasks, setMockTasks] = useState<TaskPageDto["items"]>([]);
+  const [modalState, setModalState] = useState<ModalState>({ open: false, mode: "create", taskId: null });
 
   const loadTasks = useCallback(async () => {
     if (!userId) return;
@@ -86,19 +91,16 @@ export function TasksPageClient() {
     void loadTasks();
   }, [status, router, loadTasks, userId]);
 
-  function setModal(nextMode: "create" | "view" | "edit" | null, nextTaskId?: string | null) {
-    const query = new URLSearchParams(searchParams.toString());
+  function openModal(nextMode: "create" | "view" | "edit", nextTaskId?: string | null) {
+    setModalState({
+      open: true,
+      mode: nextMode,
+      taskId: nextTaskId ?? null,
+    });
+  }
 
-    if (!nextMode) {
-      query.delete("modal");
-      query.delete("taskId");
-    } else {
-      query.set("modal", nextMode);
-      if (nextTaskId) query.set("taskId", nextTaskId);
-      else query.delete("taskId");
-    }
-
-    router.push(query.size > 0 ? `/tasks?${query.toString()}` : "/tasks");
+  function closeModal() {
+    setModalState((current) => ({ ...current, open: false, taskId: null }));
   }
 
   function applyFilter() {
@@ -236,7 +238,7 @@ export function TasksPageClient() {
   return (
     <AppShell
       actions={
-        <Button onClick={() => setModal("create")} type="button">
+        <Button onClick={() => openModal("create")} type="button">
           Nova tarefa
         </Button>
       }
@@ -276,7 +278,7 @@ export function TasksPageClient() {
               key={task.id}
               loadingTaskId={loadingTaskId}
               onEndTask={(id, reason) => handleTaskLifecycle(id, "end", reason)}
-              onOpen={(id, mode = "view") => setModal(mode, id)}
+              onOpen={(id, mode = "view") => openModal(mode, id)}
               onToggleFavorite={handleToggleFavorite}
               task={task}
             />
@@ -304,13 +306,13 @@ export function TasksPageClient() {
       ) : null}
 
       <TaskDialog
-        mode={modalMode === "edit" ? "edit" : modalMode === "view" ? "view" : "create"}
+        mode={modalState.mode}
         onChanged={loadTasks}
-        onClose={() => setModal(null)}
-        open={modalMode === "create" || modalMode === "view" || modalMode === "edit"}
-        taskId={taskId}
+        onClose={closeModal}
+        open={modalState.open}
+        taskId={modalState.taskId}
         userId={userId ?? ""}
-        initialTask={mockTasks.find((task) => task.id === taskId) ?? null}
+        initialTask={mockTasks.find((task) => task.id === modalState.taskId) ?? null}
         isMockMode={isMockMode}
         onMockCreate={handleMockCreate}
         onMockUpdate={handleMockUpdate}
@@ -322,7 +324,5 @@ export function TasksPageClient() {
 function buildTasksPageQuery(searchParams: URLSearchParams, page: number) {
   const query = new URLSearchParams(searchParams.toString());
   query.set("page", String(page));
-  query.delete("modal");
-  query.delete("taskId");
   return query.toString();
 }

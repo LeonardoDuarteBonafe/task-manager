@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function NewTaskPage() {
-  redirect("/tasks?modal=create");
+  redirect("/tasks");
 }
