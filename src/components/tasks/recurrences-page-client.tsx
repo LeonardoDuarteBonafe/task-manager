@@ -10,9 +10,11 @@ import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { apiRequest } from "@/lib/http-client";
+import { buildMockOccurrencePage, createMockDataset } from "@/lib/mocks/task-data";
+import { isForcedUser } from "@/lib/mock-mode";
 import { OccurrenceDialog } from "./occurrence-dialog";
 import { OccurrenceItem } from "./occurrence-item";
-import type { OccurrencePageDto } from "./types";
+import type { OccurrenceDetailsDto, OccurrencePageDto } from "./types";
 
 const PAGE_SIZE = 10;
 
@@ -30,6 +32,7 @@ export function RecurrencesPageClient() {
   const searchParams = useSearchParams();
   const { status, data: session } = useSession();
   const userId = session?.user?.id;
+  const isMockMode = isForcedUser(session?.user);
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
   const selectedOccurrenceId = searchParams.get("occurrenceId");
@@ -44,9 +47,27 @@ export function RecurrencesPageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [mockOccurrences, setMockOccurrences] = useState<OccurrenceDetailsDto[]>([]);
 
   const loadData = useCallback(async () => {
     if (!userId) return;
+
+    if (isMockMode) {
+      const dataset = createMockDataset();
+      setMockOccurrences(dataset.occurrences);
+      setData(
+        buildMockOccurrencePage(dataset.occurrences, page, {
+          status: filters.status,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          recurrenceType: filters.recurrenceType,
+          sortOrder: filters.sortOrder,
+        }),
+      );
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
     const query = new URLSearchParams({
       userId,
@@ -70,7 +91,7 @@ export function RecurrencesPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [filters, page, userId]);
+  }, [filters, isMockMode, page, userId]);
 
   useEffect(() => {
     setFilters({
@@ -118,6 +139,36 @@ export function RecurrencesPageClient() {
 
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
     if (!userId) return;
+    if (isMockMode) {
+      setMockOccurrences((current) => {
+        const next = current.map((occurrence) =>
+          occurrence.id === occurrenceId
+            ? {
+                ...occurrence,
+                status: (action === "complete" ? "COMPLETED" : "IGNORED") as "COMPLETED" | "IGNORED",
+                treatedAt: new Date().toISOString(),
+                completedAt: action === "complete" ? new Date().toISOString() : occurrence.completedAt,
+                ignoredAt: action === "ignore" ? new Date().toISOString() : occurrence.ignoredAt,
+                history: [
+                  { id: `mock-occ-history-${Date.now()}`, action: action === "complete" ? "COMPLETED" : "IGNORED", actedAt: new Date().toISOString() },
+                  ...occurrence.history,
+                ],
+              }
+            : occurrence,
+        );
+        setData(
+          buildMockOccurrencePage(next, page, {
+            status: filters.status,
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo,
+            recurrenceType: filters.recurrenceType,
+            sortOrder: filters.sortOrder,
+          }),
+        );
+        return next;
+      });
+      return;
+    }
     setActionLoadingId(occurrenceId);
     setError(null);
     try {
@@ -135,6 +186,25 @@ export function RecurrencesPageClient() {
 
   async function handleTaskLifecycle(taskId: string, action: "cancel" | "abort") {
     if (!userId) return;
+    if (isMockMode) {
+      setMockOccurrences((current) => {
+        const now = Date.now();
+        const next = current.filter(
+          (occurrence) => occurrence.taskId !== taskId || new Date(occurrence.scheduledAt).getTime() < now,
+        );
+        setData(
+          buildMockOccurrencePage(next, page, {
+            status: filters.status,
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo,
+            recurrenceType: filters.recurrenceType,
+            sortOrder: filters.sortOrder,
+          }),
+        );
+        return next;
+      });
+      return;
+    }
     setActionLoadingId(taskId);
     setError(null);
     try {
@@ -247,7 +317,14 @@ export function RecurrencesPageClient() {
         </Card>
       ) : null}
 
-      <OccurrenceDialog occurrenceId={selectedOccurrenceId} onClose={closeOccurrence} open={Boolean(selectedOccurrenceId)} userId={userId ?? ""} />
+      <OccurrenceDialog
+        occurrenceId={selectedOccurrenceId}
+        onClose={closeOccurrence}
+        open={Boolean(selectedOccurrenceId)}
+        userId={userId ?? ""}
+        initialOccurrence={mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null}
+        isMockMode={isMockMode}
+      />
     </AppShell>
   );
 }

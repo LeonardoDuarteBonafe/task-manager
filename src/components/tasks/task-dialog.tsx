@@ -5,21 +5,36 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { PageState } from "@/components/ui/page-state";
 import { apiRequest } from "@/lib/http-client";
+import type { TaskDto } from "./types";
 import { TaskForm, type TaskFormValues } from "./task-form";
 import { buildTaskPayload } from "./task-payload";
 import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusLabel } from "./format";
-import type { TaskDto } from "./types";
 
 type TaskDialogProps = {
   open: boolean;
   mode: "create" | "view" | "edit";
   taskId?: string | null;
   userId: string;
+  initialTask?: TaskDto | null;
+  isMockMode?: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  onMockCreate?: (values: TaskFormValues) => Promise<void>;
+  onMockUpdate?: (taskId: string, values: TaskFormValues) => Promise<void>;
 };
 
-export function TaskDialog({ open, mode, taskId, userId, onClose, onChanged }: TaskDialogProps) {
+export function TaskDialog({
+  open,
+  mode,
+  taskId,
+  userId,
+  initialTask,
+  isMockMode = false,
+  onClose,
+  onChanged,
+  onMockCreate,
+  onMockUpdate,
+}: TaskDialogProps) {
   const [task, setTask] = useState<TaskDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -27,7 +42,13 @@ export function TaskDialog({ open, mode, taskId, userId, onClose, onChanged }: T
 
   useEffect(() => {
     if (!open || !taskId || mode === "create") {
-      setTask(null);
+      setTask(mode === "create" ? null : initialTask ?? null);
+      setError(null);
+      return;
+    }
+
+    if (isMockMode) {
+      setTask(initialTask ?? null);
       setError(null);
       return;
     }
@@ -44,7 +65,7 @@ export function TaskDialog({ open, mode, taskId, userId, onClose, onChanged }: T
         setLoading(false);
       }
     })();
-  }, [mode, open, taskId, userId]);
+  }, [initialTask, isMockMode, mode, open, taskId, userId]);
 
   const initialValues = useMemo(() => {
     if (!task) return undefined;
@@ -67,7 +88,11 @@ export function TaskDialog({ open, mode, taskId, userId, onClose, onChanged }: T
     setError(null);
 
     try {
-      if (mode === "create") {
+      if (isMockMode && mode === "create" && onMockCreate) {
+        await onMockCreate(values);
+      } else if (isMockMode && taskId && onMockUpdate) {
+        await onMockUpdate(taskId, values);
+      } else if (mode === "create") {
         await apiRequest("/api/tasks", {
           method: "POST",
           body: JSON.stringify(buildTaskPayload(values, userId)),

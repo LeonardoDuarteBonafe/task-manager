@@ -8,16 +8,19 @@ import { NotificationPermissionCard } from "@/components/notifications/notificat
 import { OccurrenceDialog } from "@/components/tasks/occurrence-dialog";
 import { OccurrenceSection } from "@/components/tasks/occurrence-section";
 import { TaskDialog } from "@/components/tasks/task-dialog";
-import type { OccurrenceDto, TaskDto } from "@/components/tasks/types";
+import type { OccurrenceDetailsDto, OccurrenceDto, TaskDto } from "@/components/tasks/types";
 import { AppShell } from "@/components/ui/app-shell";
 import { Card } from "@/components/ui/card";
 import { PageState } from "@/components/ui/page-state";
 import { apiRequest } from "@/lib/http-client";
+import { buildMockOccurrencePage, buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
+import { isForcedUser } from "@/lib/mock-mode";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { status, data: session } = useSession();
   const userId = session?.user?.id;
+  const isMockMode = isForcedUser(session?.user);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,12 +34,24 @@ export default function DashboardPage() {
     mode: "view",
   });
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
+  const [mockTasks, setMockTasks] = useState<TaskDto[]>([]);
+  const [mockOccurrences, setMockOccurrences] = useState<OccurrenceDetailsDto[]>([]);
 
   const loadData = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
+      if (isMockMode) {
+        const dataset = createMockDataset();
+        setMockTasks(dataset.tasks);
+        setMockOccurrences(dataset.occurrences);
+        setOverdue(buildMockOccurrencePage(dataset.occurrences, 1, { status: "OVERDUE", sortOrder: "oldest" }).items.slice(0, 3));
+        setUpcoming(buildMockOccurrencePage(dataset.occurrences, 1, { status: "UPCOMING", sortOrder: "oldest" }).items.slice(0, 3));
+        setFavorites(buildMockTaskPage(dataset.tasks.filter((task) => task.isFavorite), 1).items.slice(0, 3));
+        return;
+      }
+
       const [overdueData, upcomingData, favoriteData] = await Promise.all([
         apiRequest<OccurrenceDto[]>(`/api/occurrences/overdue?userId=${encodeURIComponent(userId)}&limit=3`),
         apiRequest<OccurrenceDto[]>(`/api/occurrences/upcoming?userId=${encodeURIComponent(userId)}&limit=3`),
@@ -51,7 +66,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [isMockMode, userId]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -65,6 +80,30 @@ export default function DashboardPage() {
 
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
     if (!userId) return;
+    if (isMockMode) {
+      setMockOccurrences((current) => {
+        const next = current.map((occurrence) =>
+          occurrence.id === occurrenceId
+            ? {
+                ...occurrence,
+                status: (action === "complete" ? "COMPLETED" : "IGNORED") as "COMPLETED" | "IGNORED",
+                history: [
+                  {
+                    id: `mock-history-${Date.now()}`,
+                    action: action === "complete" ? "COMPLETED" : "IGNORED",
+                    actedAt: new Date().toISOString(),
+                  },
+                  ...occurrence.history,
+                ],
+              }
+            : occurrence,
+        );
+        setOverdue(buildMockOccurrencePage(next, 1, { status: "OVERDUE", sortOrder: "oldest" }).items.slice(0, 3));
+        setUpcoming(buildMockOccurrencePage(next, 1, { status: "UPCOMING", sortOrder: "oldest" }).items.slice(0, 3));
+        return next;
+      });
+      return;
+    }
     setActionLoadingId(occurrenceId);
     setError(null);
     try {
@@ -82,6 +121,32 @@ export default function DashboardPage() {
 
   async function handleTaskLifecycle(taskId: string, action: "cancel" | "abort") {
     if (!userId) return;
+    if (isMockMode) {
+      setMockTasks((current) => {
+        const nextTasks = current.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                status: (action === "cancel" ? "CANCELED" : "ABORTED") as "CANCELED" | "ABORTED",
+                canceledAt: action === "cancel" ? new Date().toISOString() : task.canceledAt,
+                abortedAt: action === "abort" ? new Date().toISOString() : task.abortedAt,
+              }
+            : task,
+        );
+        setFavorites(buildMockTaskPage(nextTasks.filter((task) => task.isFavorite), 1).items.slice(0, 3));
+        return nextTasks;
+      });
+      setMockOccurrences((current) => {
+        const now = Date.now();
+        const nextOccurrences = current.filter((occurrence) =>
+          occurrence.taskId !== taskId || new Date(occurrence.scheduledAt).getTime() < now,
+        );
+        setOverdue(buildMockOccurrencePage(nextOccurrences, 1, { status: "OVERDUE", sortOrder: "oldest" }).items.slice(0, 3));
+        setUpcoming(buildMockOccurrencePage(nextOccurrences, 1, { status: "UPCOMING", sortOrder: "oldest" }).items.slice(0, 3));
+        return nextOccurrences;
+      });
+      return;
+    }
     setActionLoadingId(taskId);
     setError(null);
     try {
@@ -99,6 +164,14 @@ export default function DashboardPage() {
 
   async function handleToggleFavorite(taskId: string, isFavorite: boolean) {
     if (!userId) return;
+    if (isMockMode) {
+      setMockTasks((current) => {
+        const nextTasks = current.map((task) => (task.id === taskId ? { ...task, isFavorite } : task));
+        setFavorites(buildMockTaskPage(nextTasks.filter((task) => task.isFavorite), 1).items.slice(0, 3));
+        return nextTasks;
+      });
+      return;
+    }
     setActionLoadingId(taskId);
     setError(null);
     try {
@@ -197,8 +270,17 @@ export default function DashboardPage() {
         open={taskModalState.open}
         taskId={taskModalState.taskId}
         userId={userId ?? ""}
+        initialTask={mockTasks.find((task) => task.id === taskModalState.taskId) ?? null}
+        isMockMode={isMockMode}
       />
-      <OccurrenceDialog occurrenceId={selectedOccurrenceId} onClose={() => setSelectedOccurrenceId(null)} open={Boolean(selectedOccurrenceId)} userId={userId ?? ""} />
+      <OccurrenceDialog
+        occurrenceId={selectedOccurrenceId}
+        onClose={() => setSelectedOccurrenceId(null)}
+        open={Boolean(selectedOccurrenceId)}
+        userId={userId ?? ""}
+        initialOccurrence={(mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) as never) ?? null}
+        isMockMode={isMockMode}
+      />
     </AppShell>
   );
 }

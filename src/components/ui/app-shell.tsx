@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/components/theme/theme-provider";
+import { isForcedUser } from "@/lib/mock-mode";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
@@ -27,6 +28,7 @@ export function AppShell({ title, subtitle, actions, children }: AppShellProps) 
   const { data } = useSession();
   const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const forcedMode = isForcedUser(data?.user);
 
   const navigation = (
     <div className="flex h-full flex-col">
@@ -35,6 +37,11 @@ export function AppShell({ title, subtitle, actions, children }: AppShellProps) 
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           {data?.user?.email ? `Conectado como ${data.user.email}` : "Gerencie suas rotinas recorrentes."}
         </p>
+        {forcedMode ? (
+          <p className="mt-2 rounded-xl bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
+            Modo forcado ativo: dados simulados e alguns recursos podem ficar limitados.
+          </p>
+        ) : null}
       </div>
       <nav className="mt-6 flex flex-1 flex-col gap-2">
         {links.map((link) => (

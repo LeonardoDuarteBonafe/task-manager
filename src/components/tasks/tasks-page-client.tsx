@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { apiRequest } from "@/lib/http-client";
+import { buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
+import { isForcedUser } from "@/lib/mock-mode";
 import { TaskDialog } from "./task-dialog";
+import { type TaskFormValues } from "./task-form";
 import { TaskItem } from "./task-item";
 import type { TaskPageDto } from "./types";
 
@@ -20,6 +23,7 @@ export function TasksPageClient() {
   const searchParams = useSearchParams();
   const { status, data: session } = useSession();
   const userId = session?.user?.id;
+  const isMockMode = isForcedUser(session?.user);
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
   const statusFilter = searchParams.get("status") ?? "";
@@ -31,9 +35,20 @@ export function TasksPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState(statusFilter);
+  const [mockTasks, setMockTasks] = useState(tasksData?.items ?? []);
 
   const loadTasks = useCallback(async () => {
     if (!userId) return;
+
+    if (isMockMode) {
+      const dataset = createMockDataset();
+      const pageData = buildMockTaskPage(dataset.tasks, page, statusFilter);
+      setMockTasks(dataset.tasks);
+      setTasksData(pageData);
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
     const query = new URLSearchParams({
       userId,
@@ -53,7 +68,7 @@ export function TasksPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, userId]);
+  }, [isMockMode, page, statusFilter, userId]);
 
   useEffect(() => {
     setDraftStatus(statusFilter);
@@ -93,6 +108,27 @@ export function TasksPageClient() {
 
   async function handleTaskLifecycle(taskIdValue: string, action: "end" | "cancel" | "abort") {
     if (!userId) return;
+    if (isMockMode) {
+      setMockTasks((current) => {
+        const nextTasks = current.map((task) =>
+          task.id === taskIdValue
+            ? {
+                ...task,
+                status: (action === "end" ? "ENDED" : action === "cancel" ? "CANCELED" : "ABORTED") as
+                  | "ENDED"
+                  | "CANCELED"
+                  | "ABORTED",
+                endedAt: action === "end" ? new Date().toISOString() : task.endedAt,
+                canceledAt: action === "cancel" ? new Date().toISOString() : task.canceledAt,
+                abortedAt: action === "abort" ? new Date().toISOString() : task.abortedAt,
+              }
+            : task,
+        );
+        setTasksData(buildMockTaskPage(nextTasks, page, statusFilter));
+        return nextTasks;
+      });
+      return;
+    }
     setLoadingTaskId(taskIdValue);
     setError(null);
     try {
@@ -110,6 +146,14 @@ export function TasksPageClient() {
 
   async function handleToggleFavorite(taskIdValue: string, isFavorite: boolean) {
     if (!userId) return;
+    if (isMockMode) {
+      setMockTasks((current) => {
+        const nextTasks = current.map((task) => (task.id === taskIdValue ? { ...task, isFavorite } : task));
+        setTasksData(buildMockTaskPage(nextTasks, page, statusFilter));
+        return nextTasks;
+      });
+      return;
+    }
     setLoadingTaskId(taskIdValue);
     setError(null);
     try {
@@ -127,6 +171,62 @@ export function TasksPageClient() {
 
   const items = tasksData?.items ?? [];
   const totalPages = tasksData?.totalPages ?? 1;
+
+  async function handleMockCreate(values: TaskFormValues) {
+    setMockTasks((current) => {
+      const nextTasks = [
+        {
+          id: `mock-task-${Date.now()}`,
+          userId: userId ?? "force-session-user",
+          title: values.title,
+          notes: values.notes || null,
+          recurrenceType: values.recurrenceType,
+          weekdays: values.weekdays,
+          scheduledTime: values.scheduledTime,
+          timezone: "America/Sao_Paulo",
+          startDate: new Date(`${values.startDate}T00:00:00`).toISOString(),
+          endDate: values.endDate ? new Date(values.endDate).toISOString() : null,
+          notificationRepeatMinutes: values.notificationRepeatMinutes,
+          maxOccurrences: values.maxOccurrences ? Number(values.maxOccurrences) : null,
+          status: "ACTIVE" as const,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          endedAt: null,
+          canceledAt: null,
+          abortedAt: null,
+          history: [],
+          isFavorite: false,
+        },
+        ...current,
+      ];
+      setTasksData(buildMockTaskPage(nextTasks, 1, statusFilter));
+      return nextTasks;
+    });
+  }
+
+  async function handleMockUpdate(taskIdValue: string, values: TaskFormValues) {
+    setMockTasks((current) => {
+      const nextTasks = current.map((task) =>
+        task.id === taskIdValue
+          ? {
+              ...task,
+              title: values.title,
+              notes: values.notes || null,
+              recurrenceType: values.recurrenceType,
+              weekdays: values.weekdays,
+              scheduledTime: values.scheduledTime,
+              startDate: new Date(`${values.startDate}T00:00:00`).toISOString(),
+              endDate: values.endDate ? new Date(values.endDate).toISOString() : null,
+              notificationRepeatMinutes: values.notificationRepeatMinutes,
+              maxOccurrences: values.maxOccurrences ? Number(values.maxOccurrences) : null,
+              updatedAt: new Date().toISOString(),
+            }
+          : task,
+      );
+      setTasksData(buildMockTaskPage(nextTasks, page, statusFilter));
+      return nextTasks;
+    });
+  }
 
   if (status === "loading") {
     return (
@@ -214,6 +314,10 @@ export function TasksPageClient() {
         open={modalMode === "create" || modalMode === "view" || modalMode === "edit"}
         taskId={taskId}
         userId={userId ?? ""}
+        initialTask={mockTasks.find((task) => task.id === taskId) ?? null}
+        isMockMode={isMockMode}
+        onMockCreate={handleMockCreate}
+        onMockUpdate={handleMockUpdate}
       />
     </AppShell>
   );

@@ -6,37 +6,26 @@ import { Dialog } from "@/components/ui/dialog";
 import { PageState } from "@/components/ui/page-state";
 import { apiRequest } from "@/lib/http-client";
 import { formatDateTime, occurrenceActionLabel, occurrenceStatusLabel, recurrenceLabel, taskStatusLabel } from "./format";
-import type { OccurrenceDto } from "./types";
-
-type OccurrenceDetails = OccurrenceDto & {
-  completedAt?: string | null;
-  ignoredAt?: string | null;
-  treatedAt?: string | null;
-  notificationAttempts?: number;
-  task: OccurrenceDto["task"] & {
-    createdAt?: string;
-    startDate?: string;
-    endDate?: string | null;
-    isFavorite: boolean;
-  };
-  history: Array<{
-    id: string;
-    action: string;
-    actedAt: string;
-    fromStatus?: string | null;
-    toStatus?: string | null;
-  }>;
-};
+import type { OccurrenceDetailsDto } from "./types";
 
 type OccurrenceDialogProps = {
   open: boolean;
   occurrenceId?: string | null;
   userId: string;
+  initialOccurrence?: OccurrenceDetailsDto | null;
+  isMockMode?: boolean;
   onClose: () => void;
 };
 
-export function OccurrenceDialog({ open, occurrenceId, userId, onClose }: OccurrenceDialogProps) {
-  const [occurrence, setOccurrence] = useState<OccurrenceDetails | null>(null);
+export function OccurrenceDialog({
+  open,
+  occurrenceId,
+  userId,
+  initialOccurrence,
+  isMockMode = false,
+  onClose,
+}: OccurrenceDialogProps) {
+  const [occurrence, setOccurrence] = useState<OccurrenceDetailsDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,11 +36,17 @@ export function OccurrenceDialog({ open, occurrenceId, userId, onClose }: Occurr
       return;
     }
 
+    if (isMockMode) {
+      setOccurrence(initialOccurrence ?? null);
+      setError(initialOccurrence ? null : "Recorrencia simulada nao encontrada.");
+      return;
+    }
+
     void (async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await apiRequest<OccurrenceDetails>(`/api/occurrences/${occurrenceId}?userId=${encodeURIComponent(userId)}`);
+        const data = await apiRequest<OccurrenceDetailsDto>(`/api/occurrences/${occurrenceId}?userId=${encodeURIComponent(userId)}`);
         setOccurrence(data);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Falha ao carregar recorrencia.");
@@ -59,7 +54,7 @@ export function OccurrenceDialog({ open, occurrenceId, userId, onClose }: Occurr
         setLoading(false);
       }
     })();
-  }, [occurrenceId, open, userId]);
+  }, [initialOccurrence, isMockMode, occurrenceId, open, userId]);
 
   return (
     <Dialog

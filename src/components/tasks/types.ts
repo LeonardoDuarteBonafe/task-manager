@@ -71,3 +71,23 @@ export type OccurrencePageDto = {
   total: number;
   totalPages: number;
 };
+
+export type OccurrenceDetailsDto = OccurrenceDto & {
+  completedAt?: string | null;
+  ignoredAt?: string | null;
+  treatedAt?: string | null;
+  notificationAttempts?: number;
+  task: OccurrenceDto["task"] & {
+    createdAt?: string;
+    startDate?: string;
+    endDate?: string | null;
+    isFavorite: boolean;
+  };
+  history: Array<{
+    id: string;
+    action: string;
+    actedAt: string;
+    fromStatus?: string | null;
+    toStatus?: string | null;
+  }>;
+};
