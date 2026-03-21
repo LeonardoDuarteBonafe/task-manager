@@ -15,3 +15,5 @@ export { registerUser } from "./register-user";
 export { requestPasswordReset } from "./request-password-reset";
 export { toggleTaskFavorite } from "./toggle-task-favorite";
 export { getOccurrenceById } from "./get-occurrence-by-id";
+export { getProfile } from "./get-profile";
+export { updateProfile } from "./update-profile";

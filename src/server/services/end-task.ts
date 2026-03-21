@@ -7,6 +7,7 @@ type ChangeTaskStatusInput = {
   taskId: string;
   userId: string;
   actedAt?: Date;
+  reason?: string;
 };
 
 type ChangeTaskStatusResult = {
@@ -72,6 +73,7 @@ async function transitionTaskStatus(
       action: targetStatus,
       metadata: {
         deletedFutureOccurrences: futurePendingOccurrences.length,
+        reason: input.reason?.trim() || null,
       },
       actedAt,
     });

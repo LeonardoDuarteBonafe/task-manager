@@ -53,7 +53,8 @@ export type RecurrenceFilterStatus =
   | "COMPLETED"
   | "IGNORED"
   | "CANCELED"
-  | "ABORTED";
+  | "ABORTED"
+  | "FAVORITES";
 
 export type ListRecurrencesInput = {
   userId: string;

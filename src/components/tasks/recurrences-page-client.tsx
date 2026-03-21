@@ -238,6 +238,7 @@ export function RecurrencesPageClient() {
               <option value="IGNORED">Ignoradas</option>
               <option value="CANCELED">Canceladas</option>
               <option value="ABORTED">Abortadas</option>
+              <option value="FAVORITES">Favoritas</option>
             </Select>
           </div>
           <div>

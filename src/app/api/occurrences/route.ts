@@ -4,7 +4,7 @@ import { handleApiError, ok } from "../_shared/http";
 
 const querySchema = z.object({
   userId: z.string().min(1),
-  status: z.enum(["OVERDUE", "UPCOMING", "OPEN", "COMPLETED", "IGNORED", "CANCELED", "ABORTED"]).optional(),
+  status: z.enum(["OVERDUE", "UPCOMING", "OPEN", "COMPLETED", "IGNORED", "CANCELED", "ABORTED", "FAVORITES"]).optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
   recurrenceType: z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY"]).optional(),

@@ -9,6 +9,7 @@ const paramsSchema = z.object({
 const bodySchema = z.object({
   userId: z.string().min(1),
   endedAt: z.coerce.date().optional(),
+  reason: z.string().trim().optional(),
 });
 
 type RouteContext = {
@@ -24,6 +25,7 @@ export async function POST(request: Request, context: RouteContext) {
       taskId: params.id,
       userId: body.userId,
       actedAt: body.endedAt,
+      reason: body.reason,
     });
 
     return ok(result);

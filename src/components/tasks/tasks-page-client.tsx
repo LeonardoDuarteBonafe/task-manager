@@ -56,7 +56,8 @@ export function TasksPageClient() {
       pageSize: String(PAGE_SIZE),
     });
 
-    if (statusFilter) query.set("status", statusFilter);
+    if (statusFilter === "FAVORITES") query.set("favorite", "true");
+    else if (statusFilter) query.set("status", statusFilter);
 
     setLoading(true);
     setError(null);
@@ -106,7 +107,7 @@ export function TasksPageClient() {
     router.push(`/tasks?${query.toString()}`);
   }
 
-  async function handleTaskLifecycle(taskIdValue: string, action: "end" | "cancel" | "abort") {
+  async function handleTaskLifecycle(taskIdValue: string, action: "end", reason?: string) {
     if (!userId) return;
     if (isMockMode) {
       setMockTasks((current) => {
@@ -114,13 +115,8 @@ export function TasksPageClient() {
           task.id === taskIdValue
             ? {
                 ...task,
-                status: (action === "end" ? "ENDED" : action === "cancel" ? "CANCELED" : "ABORTED") as
-                  | "ENDED"
-                  | "CANCELED"
-                  | "ABORTED",
-                endedAt: action === "end" ? new Date().toISOString() : task.endedAt,
-                canceledAt: action === "cancel" ? new Date().toISOString() : task.canceledAt,
-                abortedAt: action === "abort" ? new Date().toISOString() : task.abortedAt,
+                status: "ENDED" as const,
+                endedAt: new Date().toISOString(),
               }
             : task,
         );
@@ -134,11 +130,12 @@ export function TasksPageClient() {
     try {
       await apiRequest(`/api/tasks/${taskIdValue}/${action}`, {
         method: "POST",
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, reason }),
       });
       await loadTasks();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar tarefa.");
+      throw requestError;
     } finally {
       setLoadingTaskId(null);
     }
@@ -256,6 +253,7 @@ export function TasksPageClient() {
               <option value="ENDED">Finalizadas</option>
               <option value="CANCELED">Canceladas</option>
               <option value="ABORTED">Abortadas</option>
+              <option value="FAVORITES">Favoritas</option>
             </Select>
           </div>
           <div className="flex gap-2">
@@ -277,9 +275,7 @@ export function TasksPageClient() {
             <TaskItem
               key={task.id}
               loadingTaskId={loadingTaskId}
-              onAbortTask={(id) => handleTaskLifecycle(id, "abort")}
-              onCancelTask={(id) => handleTaskLifecycle(id, "cancel")}
-              onEndTask={(id) => handleTaskLifecycle(id, "end")}
+              onEndTask={(id, reason) => handleTaskLifecycle(id, "end", reason)}
               onOpen={(id, mode = "view") => setModal(mode, id)}
               onToggleFavorite={handleToggleFavorite}
               task={task}

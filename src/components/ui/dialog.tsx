@@ -44,7 +44,7 @@ export function Dialog({ open, onClose, title, description, children, size = "lg
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:items-center sm:p-6">
       <button aria-label="Fechar modal" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
       <div
         aria-modal="true"
@@ -60,11 +60,12 @@ export function Dialog({ open, onClose, title, description, children, size = "lg
             {description ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{description}</p> : null}
           </div>
           <button
+            aria-label="Fechar"
             className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100"
             onClick={onClose}
             type="button"
           >
-            ×
+            x
           </button>
         </div>
         <div className="overflow-y-auto p-5">{children}</div>

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FavoriteTaskCard } from "@/components/tasks/favorite-task-card";
-import { NotificationPermissionCard } from "@/components/notifications/notification-permission-card";
 import { OccurrenceDialog } from "@/components/tasks/occurrence-dialog";
 import { OccurrenceSection } from "@/components/tasks/occurrence-section";
 import { TaskDialog } from "@/components/tasks/task-dialog";
@@ -187,10 +186,10 @@ export default function DashboardPage() {
     }
   }
 
-  const subtitle = useMemo(() => {
-    if (!session?.user?.email) return "Priorize o que venceu, acompanhe o que vem a seguir e destaque seus favoritos.";
-    return `Usuario: ${session.user.email}`;
-  }, [session?.user?.email]);
+  const subtitle = useMemo(
+    () => "Priorize o que venceu, acompanhe o que vem a seguir e destaque seus favoritos.",
+    [],
+  );
 
   if (status === "loading") {
     return (
@@ -201,9 +200,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <AppShell subtitle={subtitle} title="Painel">
-      <NotificationPermissionCard />
-
+    <AppShell showPageHeader={false} subtitle={subtitle} title="Painel">
       <div className="grid gap-6 xl:grid-cols-[1.4fr,1fr]">
         <div className="space-y-6">
           <OccurrenceSection

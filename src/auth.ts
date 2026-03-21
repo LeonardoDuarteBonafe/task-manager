@@ -83,10 +83,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
+      if (user?.name !== undefined) token.name = user.name;
+      if (user?.image !== undefined) token.picture = user.image;
       if (user?.email === FORCE_LOGIN_EMAIL || (user as { isForced?: boolean } | undefined)?.isForced) {
         token.isForced = true;
+      }
+      if (trigger === "update") {
+        if (typeof session?.name === "string") {
+          token.name = session.name;
+        }
       }
       return token;
     },
@@ -94,6 +101,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user && token.sub) {
         session.user.id = token.sub;
         session.user.isForced = token.isForced === true;
+        session.user.name = typeof token.name === "string" ? token.name : session.user.name;
+        session.user.image = typeof token.picture === "string" ? token.picture : session.user.image;
       }
       return session;
     },

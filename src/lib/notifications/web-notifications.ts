@@ -1,3 +1,5 @@
+const NOTIFICATIONS_ENABLED_KEY = "taskmanager-notifications-enabled";
+
 export function isNotificationSupported() {
   return typeof window !== "undefined" && "Notification" in window;
 }
@@ -14,12 +16,55 @@ export function getNotificationPermission() {
   return Notification.permission;
 }
 
+export function getNotificationsEnabled() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const storedValue = window.localStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+
+  if (storedValue === null) {
+    return getNotificationPermission() === "granted";
+  }
+
+  return storedValue === "true";
+}
+
+export function setNotificationsEnabled(enabled: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(NOTIFICATIONS_ENABLED_KEY, String(enabled));
+}
+
 export async function requestNotificationPermission() {
   if (!isNotificationSupported()) {
     return "unsupported" as const;
   }
 
   return Notification.requestPermission();
+}
+
+export async function enableNotifications() {
+  const currentPermission = getNotificationPermission();
+
+  if (currentPermission === "granted") {
+    setNotificationsEnabled(true);
+    return "granted" as const;
+  }
+
+  const nextPermission = await requestNotificationPermission();
+
+  if (nextPermission === "granted") {
+    setNotificationsEnabled(true);
+  }
+
+  return nextPermission;
+}
+
+export function disableNotifications() {
+  setNotificationsEnabled(false);
 }
 
 export async function getNotificationServiceWorkerRegistration() {
@@ -44,7 +89,7 @@ export async function getNotificationServiceWorkerRegistration() {
 }
 
 export async function showNotificationPreview(title: string, body: string) {
-  if (getNotificationPermission() !== "granted") {
+  if (getNotificationPermission() !== "granted" || !getNotificationsEnabled()) {
     return false;
   }
 

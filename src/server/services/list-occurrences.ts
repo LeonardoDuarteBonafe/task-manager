@@ -55,6 +55,8 @@ function buildStatusWhere(status: RecurrenceFilterStatus | undefined, now: Date)
       return { task: { status: "CANCELED" } };
     case "ABORTED":
       return { task: { status: "ABORTED" } };
+    case "FAVORITES":
+      return { task: { isFavorite: true } };
     default:
       return {};
   }

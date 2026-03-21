@@ -139,7 +139,11 @@ export function createMockDataset() {
 }
 
 export function buildMockTaskPage(tasks: TaskDto[], page: number, status?: string): TaskPageDto {
-  const filtered = status ? tasks.filter((task) => task.status === status) : tasks;
+  const filtered = status
+    ? status === "FAVORITES"
+      ? tasks.filter((task) => task.isFavorite)
+      : tasks.filter((task) => task.status === status)
+    : tasks;
   return paginate(filtered, page, 10);
 }
 
@@ -160,6 +164,7 @@ export function buildMockOccurrencePage(
       if (filters.status === "IGNORED") return occurrence.status === "IGNORED";
       if (filters.status === "CANCELED") return occurrence.task.status === "CANCELED";
       if (filters.status === "ABORTED") return occurrence.task.status === "ABORTED";
+      if (filters.status === "FAVORITES") return occurrence.task.isFavorite;
       return true;
     });
   }

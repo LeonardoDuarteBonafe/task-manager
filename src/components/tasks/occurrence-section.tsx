@@ -42,15 +42,15 @@ export function OccurrenceSection({
           </Link>
         ) : null}
       </div>
-      {loading ? <PageState description="Buscando ocorrências..." title="Carregando" /> : null}
+      {loading ? <PageState description="Buscando ocorrencias..." title="Carregando" /> : null}
       {!loading && error ? <PageState description={error} title="Erro" /> : null}
       {!loading && !error && occurrences.length === 0 ? <PageState description={emptyMessage} title="Vazio" /> : null}
       {!loading && !error && occurrences.length > 0
         ? occurrences.map((occurrence) => (
             <OccurrenceItem
               key={occurrence.id}
-              occurrence={occurrence}
               loadingActionId={actionLoadingId}
+              occurrence={occurrence}
               onAbortTask={onAbortTask}
               onCancelTask={onCancelTask}
               onComplete={onComplete}
