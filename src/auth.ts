@@ -9,6 +9,8 @@ import { prisma } from "@/lib/prisma";
 const FORCE_LOGIN_EMAIL = "force@taskmanager.local";
 const FORCE_LOGIN_PASSWORD = "Force@123456";
 const FORCE_LOGIN_USER_ID = "force-session-user";
+const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -16,7 +18,7 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: hasDatabaseUrl ? PrismaAdapter(prisma) : undefined,
   session: {
     strategy: "jwt",
   },
@@ -46,23 +48,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email.toLowerCase() },
-        });
-        if (!user || !user.passwordHash) return null;
+        if (!hasDatabaseUrl) {
+          return null;
+        }
 
-        const isValidPassword = await compare(parsed.data.password, user.passwordHash);
-        if (!isValidPassword) return null;
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: parsed.data.email.toLowerCase() },
+          });
+          if (!user || !user.passwordHash) return null;
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
+          const isValidPassword = await compare(parsed.data.password, user.passwordHash);
+          if (!isValidPassword) return null;
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          };
+        } catch (error) {
+          console.error("Falha ao validar credenciais com o banco.", error);
+          return null;
+        }
       },
     }),
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(googleEnabled
       ? [
           Google({
             clientId: process.env.GOOGLE_CLIENT_ID,

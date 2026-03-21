@@ -9,7 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { FORCE_LOGIN_EMAIL, FORCE_LOGIN_PASSWORD } from "@/lib/mock-mode";
 
-export function LoginCard({ showBackLink = false }: { showBackLink?: boolean }) {
+export function LoginCard({
+  showBackLink = false,
+  googleEnabled = false,
+}: {
+  showBackLink?: boolean;
+  googleEnabled?: boolean;
+}) {
   const router = useRouter();
   const { status } = useSession();
   const [email, setEmail] = useState("");
@@ -105,9 +111,11 @@ export function LoginCard({ showBackLink = false }: { showBackLink?: boolean }) 
         </Button>
       </form>
 
-      <Button className="w-full" onClick={() => signIn("google", { callbackUrl: "/dashboard" })} type="button" variant="secondary">
-        Entrar com Google
-      </Button>
+      {googleEnabled ? (
+        <Button className="w-full" onClick={() => signIn("google", { callbackUrl: "/dashboard" })} type="button" variant="secondary">
+          Entrar com Google
+        </Button>
+      ) : null}
 
       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="space-y-2">
