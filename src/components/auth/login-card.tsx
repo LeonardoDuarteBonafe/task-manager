@@ -113,7 +113,7 @@ export function LoginCard({ showBackLink = false }: { showBackLink?: boolean }) 
         <div className="space-y-2">
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Acesso forcado pelo front</p>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Esse acesso nao depende de usuario salvo no banco. Ele serve para navegar e validar a interface, com limitacoes nos dados exibidos.
+            Esse acesso nao depende de usuário salvo no banco. Ele serve para navegar e validar a interface, com limitacoes nos dados exibidos.
           </p>
           <Button className="w-full" disabled={loading || forceLoading} onClick={submitForceAccess} type="button" variant="ghost">
             {forceLoading ? "Entrando..." : "Entrar em modo forcado"}
