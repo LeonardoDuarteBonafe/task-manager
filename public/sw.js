@@ -1,6 +1,14 @@
 const STATIC_CACHE = "taskmanager-static-v1";
 const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg"];
 
+function createNotificationId(prefix = "desktop") {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS)),
@@ -61,11 +69,14 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   const title = data.title || "TaskManager";
+  const notificationId = data.notificationId || createNotificationId(data.channel || "desktop");
   const options = {
     body: data.body || "Voce tem uma nova atualizacao de tarefa.",
     icon: "/icons/icon-192.svg",
     badge: "/icons/icon-192.svg",
     data: {
+      notificationId,
+      channel: data.channel || "desktop",
       url: data.url || "/dashboard",
     },
   };

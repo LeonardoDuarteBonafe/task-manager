@@ -1,4 +1,12 @@
 const NOTIFICATIONS_ENABLED_KEY = "taskmanager-notifications-enabled";
+const NOTIFICATION_ICON = "/icons/icon-192.svg";
+
+export type NotificationChannel = "desktop" | "mobile";
+
+type BrowserNotificationOptions = {
+  channel?: NotificationChannel;
+  notificationId?: string;
+};
 
 function formatNotificationSentAt(date: Date) {
   return date.toLocaleTimeString("pt-BR", {
@@ -26,6 +34,10 @@ export function getNotificationPermission() {
 
 export function getNotificationsEnabled() {
   if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (getNotificationPermission() !== "granted") {
     return false;
   }
 
@@ -66,6 +78,8 @@ export async function enableNotifications() {
 
   if (nextPermission === "granted") {
     setNotificationsEnabled(true);
+  } else {
+    setNotificationsEnabled(false);
   }
 
   return nextPermission;
@@ -96,29 +110,44 @@ export async function getNotificationServiceWorkerRegistration() {
   return readyOrTimeout;
 }
 
-export async function showNotificationPreview(title: string, body: string) {
+function createNotificationId(channel: NotificationChannel) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${channel}-${crypto.randomUUID()}`;
+  }
+
+  return `${channel}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildNotificationOptions(body: string, notificationId: string) {
+  return {
+    body,
+    icon: NOTIFICATION_ICON,
+    badge: NOTIFICATION_ICON,
+    data: {
+      notificationId,
+    },
+  };
+}
+
+export async function showNotificationPreview(title: string, body: string, options: BrowserNotificationOptions = {}) {
   if (getNotificationPermission() !== "granted" || !getNotificationsEnabled()) {
     return false;
   }
 
+  const channel = options.channel ?? "desktop";
+  const notificationId = options.notificationId ?? createNotificationId(channel);
+  const notificationOptions = buildNotificationOptions(body, notificationId);
   const registration = await getNotificationServiceWorkerRegistration();
 
   if (registration) {
-    await registration.showNotification(title, {
-      body,
-      icon: "/icons/icon-192.svg",
-      badge: "/icons/icon-192.svg",
-      tag: "taskmanager-preview",
-    });
+    await registration.showNotification(title, notificationOptions);
 
     return true;
   }
 
   if (typeof window !== "undefined" && "Notification" in window) {
     new Notification(title, {
-      body,
-      icon: "/icons/icon-192.svg",
-      tag: "taskmanager-preview",
+      ...notificationOptions,
     });
 
     return true;
@@ -130,5 +159,7 @@ export async function showNotificationPreview(title: string, body: string) {
 export async function showTaskNotificationPreview(taskTitle: string, scheduledTime: string, sentAt = new Date()) {
   const body = [`Horario: ${scheduledTime}`, `Notificacao enviada em ${formatNotificationSentAt(sentAt)}`].join("\n");
 
-  return showNotificationPreview(taskTitle, body);
+  return showNotificationPreview(taskTitle, body, {
+    channel: "desktop",
+  });
 }
