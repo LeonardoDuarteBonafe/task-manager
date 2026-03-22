@@ -1,5 +1,13 @@
 const NOTIFICATIONS_ENABLED_KEY = "taskmanager-notifications-enabled";
 
+function formatNotificationSentAt(date: Date) {
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 export function isNotificationSupported() {
   return typeof window !== "undefined" && "Notification" in window;
 }
@@ -117,4 +125,10 @@ export async function showNotificationPreview(title: string, body: string) {
   }
 
   return false;
+}
+
+export async function showTaskNotificationPreview(taskTitle: string, scheduledTime: string, sentAt = new Date()) {
+  const body = [`Horario: ${scheduledTime}`, `Notificacao enviada em ${formatNotificationSentAt(sentAt)}`].join("\n");
+
+  return showNotificationPreview(taskTitle, body);
 }

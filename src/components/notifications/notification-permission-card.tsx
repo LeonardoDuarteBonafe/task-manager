@@ -10,7 +10,7 @@ import {
   getNotificationsEnabled,
   isNotificationSupported,
   isServiceWorkerSupported,
-  showNotificationPreview,
+  showTaskNotificationPreview,
 } from "@/lib/notifications/web-notifications";
 
 type PermissionState = NotificationPermission | "unsupported";
@@ -108,7 +108,7 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
     setFeedback(null);
 
     try {
-      const shown = await showNotificationPreview("Task Manager", "Esta e uma notificacao de teste do ambiente atual.");
+      const shown = await showTaskNotificationPreview("Tomar remedio", "08:00");
       setFeedback(shown ? "Notificacao disparada com sucesso." : "Nao foi possivel exibir a notificacao. Verifique permissao e estado atual.");
     } finally {
       setLoading(false);

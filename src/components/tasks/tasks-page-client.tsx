@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { AppShell } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { apiRequest } from "@/lib/http-client";
@@ -51,12 +52,14 @@ export function TasksPageClient() {
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
   const statusFilter = searchParams.get("status") ?? "";
+  const taskCodeFilter = searchParams.get("code") ?? "";
 
   const [tasksData, setTasksData] = useState<TaskPageDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState(statusFilter);
+  const [draftCode, setDraftCode] = useState(taskCodeFilter);
   const [mockTasks, setMockTasks] = useState<TaskPageDto["items"]>([]);
   const [modalState, setModalState] = useState<ModalState>({ open: false, mode: "create", taskId: null });
 
@@ -65,7 +68,10 @@ export function TasksPageClient() {
 
     if (isMockMode) {
       const dataset = createMockDataset();
-      const pageData = buildMockTaskPage(dataset.tasks, page, statusFilter);
+      const pageData = buildMockTaskPage(dataset.tasks, page, {
+        status: statusFilter,
+        taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+      });
       setMockTasks(dataset.tasks);
       setTasksData(pageData);
       setLoading(false);
@@ -79,6 +85,7 @@ export function TasksPageClient() {
       pageSize: String(PAGE_SIZE),
     });
 
+    if (taskCodeFilter) query.set("taskCode", taskCodeFilter);
     if (statusFilter === "FAVORITES") query.set("favorite", "true");
     else if (statusFilter) query.set("status", statusFilter);
 
@@ -92,11 +99,12 @@ export function TasksPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [isMockMode, page, statusFilter, userId]);
+  }, [isMockMode, page, statusFilter, taskCodeFilter, userId]);
 
   useEffect(() => {
     setDraftStatus(statusFilter);
-  }, [statusFilter]);
+    setDraftCode(taskCodeFilter);
+  }, [statusFilter, taskCodeFilter]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -124,6 +132,7 @@ export function TasksPageClient() {
   function applyFilter() {
     const query = new URLSearchParams({ page: "1" });
     if (draftStatus) query.set("status", draftStatus);
+    if (draftCode) query.set("code", draftCode);
     router.push(`/tasks?${query.toString()}`);
   }
 
@@ -135,12 +144,13 @@ export function TasksPageClient() {
           task.id === taskIdValue
             ? {
                 ...task,
+                isEnded: true,
                 status: "ENDED" as const,
                 endedAt: new Date().toISOString(),
               }
             : task,
         );
-        setTasksData(buildMockTaskPage(nextTasks, page, statusFilter));
+        setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
         return nextTasks;
       });
       return;
@@ -166,7 +176,7 @@ export function TasksPageClient() {
     if (isMockMode) {
       setMockTasks((current) => {
         const nextTasks = current.map((task) => (task.id === taskIdValue ? { ...task, isFavorite } : task));
-        setTasksData(buildMockTaskPage(nextTasks, page, statusFilter));
+        setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
         return nextTasks;
       });
       return;
@@ -197,6 +207,7 @@ export function TasksPageClient() {
         {
           id: `mock-task-${Date.now()}`,
           userId: userId ?? "force-session-user",
+          taskCode: current.length + 1,
           title: values.title,
           notes: values.notes || null,
           recurrenceType: values.recurrenceType,
@@ -207,6 +218,7 @@ export function TasksPageClient() {
           endDate: values.endDate ? new Date(values.endDate).toISOString() : null,
           notificationRepeatMinutes: values.notificationRepeatMinutes,
           maxOccurrences: values.maxOccurrences ? Number(values.maxOccurrences) : null,
+          isEnded: false,
           status: "ACTIVE" as const,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -218,7 +230,7 @@ export function TasksPageClient() {
         },
         ...current,
       ];
-      setTasksData(buildMockTaskPage(nextTasks, 1, statusFilter));
+      setTasksData(buildMockTaskPage(nextTasks, 1, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
       return nextTasks;
     });
   }
@@ -242,7 +254,7 @@ export function TasksPageClient() {
             }
           : task,
       );
-      setTasksData(buildMockTaskPage(nextTasks, page, statusFilter));
+      setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
       return nextTasks;
     });
   }
@@ -278,6 +290,15 @@ export function TasksPageClient() {
               <option value="FAVORITES">Favoritas</option>
             </Select>
           </div>
+          <div className="w-full max-w-xs">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Codigo</label>
+            <Input
+              inputMode="numeric"
+              onChange={(event) => setDraftCode(event.target.value.replace(/\D/g, ""))}
+              placeholder="Ex.: 12"
+              value={draftCode}
+            />
+          </div>
           <div className="flex gap-2">
             <Button type="button" onClick={applyFilter}>
               Aplicar filtro
@@ -297,6 +318,7 @@ export function TasksPageClient() {
             <TaskItem
               key={task.id}
               loadingTaskId={loadingTaskId}
+              isHighlighted={taskCodeFilter ? task.taskCode === Number(taskCodeFilter) : false}
               onEndTask={(id, reason) => handleTaskLifecycle(id, "end", reason)}
               onOpen={(id, mode = "view") => openModal(mode, id)}
               onToggleFavorite={handleToggleFavorite}

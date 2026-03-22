@@ -12,7 +12,9 @@ function withTime(date: Date, hours: number, minutes: number) {
   return next;
 }
 
-function buildMockTask(params: Partial<TaskDto> & Pick<TaskDto, "id" | "title" | "scheduledTime" | "recurrenceType" | "status">): TaskDto {
+function buildMockTask(
+  params: Partial<TaskDto> & Pick<TaskDto, "id" | "taskCode" | "title" | "scheduledTime" | "recurrenceType" | "status">,
+): TaskDto {
   const now = new Date();
 
   return {
@@ -26,6 +28,7 @@ function buildMockTask(params: Partial<TaskDto> & Pick<TaskDto, "id" | "title" |
     maxOccurrences: null,
     createdAt: addDays(now, -12).toISOString(),
     updatedAt: addDays(now, -1).toISOString(),
+    isEnded: false,
     endedAt: null,
     canceledAt: null,
     abortedAt: null,
@@ -41,6 +44,7 @@ export function createMockDataset() {
   const tasks: TaskDto[] = [
     buildMockTask({
       id: "mock-task-1",
+      taskCode: 1,
       title: "Tirar lixo",
       recurrenceType: "DAILY",
       scheduledTime: "08:00",
@@ -51,6 +55,7 @@ export function createMockDataset() {
     }),
     buildMockTask({
       id: "mock-task-2",
+      taskCode: 2,
       title: "Revisar agenda da semana",
       recurrenceType: "WEEKLY",
       weekdays: [1, 4],
@@ -62,6 +67,7 @@ export function createMockDataset() {
     }),
     buildMockTask({
       id: "mock-task-3",
+      taskCode: 3,
       title: "Tomar vitamina",
       recurrenceType: "DAILY",
       scheduledTime: "07:00",
@@ -71,10 +77,12 @@ export function createMockDataset() {
     }),
     buildMockTask({
       id: "mock-task-4",
+      taskCode: 4,
       title: "Fechar relatorio mensal",
       recurrenceType: "MONTHLY",
       scheduledTime: "17:00",
       status: "ENDED",
+      isEnded: true,
       endedAt: addDays(now, -3).toISOString(),
       history: [{ id: "th-4", action: "ENDED", actedAt: addDays(now, -3).toISOString(), metadata: null }],
     }),
@@ -85,7 +93,9 @@ export function createMockDataset() {
       id: "mock-occ-1",
       taskId: "mock-task-1",
       userId: "force-session-user",
+      recurrenceCode: 1,
       scheduledAt: withTime(addDays(now, -1), 8, 0).toISOString(),
+      isEnded: false,
       status: "PENDING",
       treatedAt: null,
       completedAt: null,
@@ -98,7 +108,9 @@ export function createMockDataset() {
       id: "mock-occ-2",
       taskId: "mock-task-2",
       userId: "force-session-user",
+      recurrenceCode: 2,
       scheduledAt: withTime(addDays(now, 1), 9, 30).toISOString(),
+      isEnded: false,
       status: "PENDING",
       treatedAt: null,
       completedAt: null,
@@ -111,7 +123,9 @@ export function createMockDataset() {
       id: "mock-occ-3",
       taskId: "mock-task-3",
       userId: "force-session-user",
+      recurrenceCode: 3,
       scheduledAt: withTime(addDays(now, 2), 7, 0).toISOString(),
+      isEnded: false,
       status: "PENDING",
       treatedAt: null,
       completedAt: null,
@@ -124,7 +138,9 @@ export function createMockDataset() {
       id: "mock-occ-4",
       taskId: "mock-task-3",
       userId: "force-session-user",
+      recurrenceCode: 4,
       scheduledAt: withTime(addDays(now, -3), 7, 0).toISOString(),
+      isEnded: true,
       status: "COMPLETED",
       treatedAt: addDays(now, -3).toISOString(),
       completedAt: addDays(now, -3).toISOString(),
@@ -138,19 +154,34 @@ export function createMockDataset() {
   return { tasks, occurrences };
 }
 
-export function buildMockTaskPage(tasks: TaskDto[], page: number, status?: string): TaskPageDto {
-  const filtered = status
+export function buildMockTaskPage(tasks: TaskDto[], page: number, filters?: string | { status?: string; taskCode?: number }): TaskPageDto {
+  const status = typeof filters === "string" ? filters : filters?.status;
+  const taskCode = typeof filters === "string" ? undefined : filters?.taskCode;
+
+  let filtered = status
     ? status === "FAVORITES"
       ? tasks.filter((task) => task.isFavorite)
       : tasks.filter((task) => task.status === status)
     : tasks;
+
+  if (taskCode) {
+    filtered = filtered.filter((task) => task.taskCode === taskCode);
+  }
+
   return paginate(filtered, page, 10);
 }
 
 export function buildMockOccurrencePage(
   occurrences: OccurrenceDetailsDto[],
   page: number,
-  filters: { status?: string; dateFrom?: string; dateTo?: string; recurrenceType?: string; sortOrder?: "oldest" | "newest" },
+  filters: {
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    recurrenceType?: string;
+    recurrenceCode?: number;
+    sortOrder?: "oldest" | "newest";
+  },
 ): OccurrencePageDto {
   const now = Date.now();
   let filtered = [...occurrences];
@@ -183,6 +214,10 @@ export function buildMockOccurrencePage(
 
   if (filters.recurrenceType) {
     filtered = filtered.filter((occurrence) => occurrence.task.recurrenceType === filters.recurrenceType);
+  }
+
+  if (filters.recurrenceCode) {
+    filtered = filtered.filter((occurrence) => occurrence.recurrenceCode === filters.recurrenceCode);
   }
 
   filtered.sort((a, b) =>

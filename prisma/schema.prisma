@@ -65,6 +65,7 @@ model User {
 model Task {
   id                          String          @id @default(cuid())
   userId                      String
+  taskCode                    Int
   title                       String
   notes                       String?
   recurrenceType              RecurrenceType
@@ -76,6 +77,7 @@ model Task {
   notificationRepeatMinutes   Int             @default(10)
   maxOccurrences              Int?
   isFavorite                  Boolean         @default(false)
+  isEnded                     Boolean         @default(false)
   status                      TaskStatus      @default(ACTIVE)
   endedAt                     DateTime?
   createdAt                   DateTime        @default(now())
@@ -88,6 +90,7 @@ model Task {
 
   @@index([userId, status])
   @@index([userId, recurrenceType])
+  @@unique([userId, taskCode])
 }
 
 model TaskHistory {
@@ -108,7 +111,9 @@ model TaskOccurrence {
   id                   String                  @id @default(cuid())
   taskId               String
   userId               String
+  recurrenceCode       Int
   scheduledAt          DateTime
+  isEnded              Boolean                 @default(false)
   status               OccurrenceStatus        @default(PENDING)
   treatedAt            DateTime?
   completedAt          DateTime?
@@ -124,6 +129,7 @@ model TaskOccurrence {
   @@unique([taskId, scheduledAt])
   @@index([userId, status, scheduledAt])
   @@index([taskId, status])
+  @@unique([userId, recurrenceCode])
 }
 
 model TaskOccurrenceHistory {

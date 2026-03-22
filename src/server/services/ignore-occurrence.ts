@@ -32,6 +32,7 @@ export async function ignoreOccurrence(input: IgnoreOccurrenceInput): Promise<Ta
     const updated = await tx.taskOccurrence.update({
       where: { id: occurrence.id },
       data: {
+        isEnded: true,
         status: "IGNORED",
         treatedAt: ignoredAt,
         ignoredAt,

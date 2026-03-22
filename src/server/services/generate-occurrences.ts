@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { DomainError } from "./task-domain/errors";
 import { buildOccurrenceSchedule, resolveUntilDate, startOfUtcDay } from "./task-domain/recurrence";
 import type { GenerateOccurrencesInput } from "./task-domain/types";
+import { getNextRecurrenceCode } from "./code-sequence";
 
 const DEFAULT_HORIZON_DAYS = 30;
 
@@ -50,35 +51,68 @@ export async function generateOccurrences(input: GenerateOccurrencesInput): Prom
     return { taskId: task.id, generatedCount: 0, attemptedCount: 0, from, until };
   }
 
-  let maxAllowedToCreate = scheduledDates.length;
+  const existingOccurrences = await prisma.taskOccurrence.findMany({
+    where: {
+      taskId: task.id,
+      scheduledAt: {
+        gte: from,
+        lte: until,
+      },
+    },
+    select: {
+      scheduledAt: true,
+    },
+  });
+
+  const existingKeys = new Set(existingOccurrences.map((occurrence) => occurrence.scheduledAt.toISOString()));
+  const missingDates = scheduledDates.filter((scheduledAt) => !existingKeys.has(scheduledAt.toISOString()));
+
+  let maxAllowedToCreate = missingDates.length;
   if (task.maxOccurrences != null) {
     const existingCount = await prisma.taskOccurrence.count({
       where: { taskId: task.id },
     });
     const remaining = task.maxOccurrences - existingCount;
-    maxAllowedToCreate = Math.max(0, Math.min(scheduledDates.length, remaining));
+    maxAllowedToCreate = Math.max(0, Math.min(missingDates.length, remaining));
   }
 
   if (maxAllowedToCreate === 0) {
     return { taskId: task.id, generatedCount: 0, attemptedCount: 0, from, until };
   }
 
-  const rows: Prisma.TaskOccurrenceCreateManyInput[] = scheduledDates.slice(0, maxAllowedToCreate).map((scheduledAt) => ({
-    taskId: task.id,
-    userId: task.userId,
-    scheduledAt,
-    status: "PENDING",
-  }));
+  const datesToCreate = missingDates.slice(0, maxAllowedToCreate);
 
-  const result = await prisma.taskOccurrence.createMany({
-    data: rows,
-    skipDuplicates: true,
+  const result = await prisma.$transaction(async (tx) => {
+    let nextRecurrenceCode = await getNextRecurrenceCode(tx, task.userId);
+
+    const rows: Prisma.TaskOccurrenceCreateManyInput[] = datesToCreate.map((scheduledAt) => {
+      const row = {
+        taskId: task.id,
+        userId: task.userId,
+        recurrenceCode: nextRecurrenceCode,
+        scheduledAt,
+        isEnded: false,
+        status: "PENDING" as const,
+      };
+
+      nextRecurrenceCode += 1;
+      return row;
+    });
+
+    const created = await tx.taskOccurrence.createMany({
+      data: rows,
+    });
+
+    return {
+      createdCount: created.count,
+      attemptedCount: rows.length,
+    };
   });
 
   return {
     taskId: task.id,
-    generatedCount: result.count,
-    attemptedCount: rows.length,
+    generatedCount: result.createdCount,
+    attemptedCount: result.attemptedCount,
     from: startOfUtcDay(from),
     until: startOfUtcDay(until),
   };

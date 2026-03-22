@@ -8,7 +8,7 @@ import { apiRequest } from "@/lib/http-client";
 import type { TaskDto } from "./types";
 import { TaskForm, type TaskFormValues } from "./task-form";
 import { buildTaskPayload } from "./task-payload";
-import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusLabel } from "./format";
+import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusWithDateLabel } from "./format";
 
 type TaskDialogProps = {
   open: boolean;
@@ -143,14 +143,16 @@ export function TaskDialog({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
+              <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Codigo: {task.taskCode}</p>
               {task.notes ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{task.notes}</p> : null}
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-              {taskStatusLabel(task.status)}
+              {taskStatusWithDateLabel(task)}
             </span>
           </div>
 
           <div className="grid gap-3 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
+            <p>Codigo: #{task.taskCode}</p>
             <p>Recorrencia: {recurrenceLabel(task)}</p>
             <p>Horario: {task.scheduledTime}</p>
             <p>Data inicial: {formatDateTime(task.startDate)}</p>

@@ -14,6 +14,7 @@ type TaskItemProps = {
   onToggleFavorite: (taskId: string, isFavorite: boolean) => Promise<void>;
   onOpen: (taskId: string, mode?: "view" | "edit") => void;
   loadingTaskId?: string | null;
+  isHighlighted?: boolean;
 };
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -30,7 +31,7 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
-export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTaskId }: TaskItemProps) {
+export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTaskId, isHighlighted = false }: TaskItemProps) {
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [favoriteAnimating, setFavoriteAnimating] = useState(false);
   const animationTimerRef = useRef<number | null>(null);
@@ -66,7 +67,7 @@ export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTas
 
   return (
     <>
-      <Card className="overflow-hidden p-0">
+      <Card className={cn("overflow-hidden p-0 transition-shadow", isHighlighted && "ring-2 ring-blue-300 dark:ring-blue-500/60")}>
         <div className="flex flex-col gap-0 md:flex-row">
           <button
             className="min-w-0 flex-1 px-5 py-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-900/60"
@@ -74,6 +75,7 @@ export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTas
             type="button"
           >
             <h3 className="min-w-0 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Codigo: {task.taskCode}</p>
 
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="min-w-0 truncate text-sm text-slate-600 dark:text-slate-400">{recurrenceLabel(task)}</p>
@@ -82,7 +84,7 @@ export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTas
             <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Horario: {task.scheduledTime}</p>
           </button>
 
-          <div className="flex w-full shrink-0 flex-col justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 md:w-[300px] md:border-l md:border-t-0 dark:border-slate-800 dark:bg-slate-950/40">
+          <div className="flex w-full shrink-0 flex-col justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 md:w-[20%] md:min-w-[140px] md:max-w-[300px] md:border-l md:border-t-0 dark:border-slate-800 dark:bg-slate-950/40">
             <div className="flex items-start justify-between gap-3">
               <button
                 aria-label={task.isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}

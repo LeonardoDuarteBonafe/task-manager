@@ -1,4 +1,4 @@
-import type { TaskDto } from "./types";
+import type { OccurrenceDetailsDto, TaskDto } from "./types";
 
 const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
@@ -32,7 +32,7 @@ export function recurrenceLabel(input: {
   return `Semanalmente (${input.weekdays.map((d) => weekdayLabels[d] ?? d).join(", ")})`;
 }
 
-export function taskStatusLabel(status: TaskDto["status"] | "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED"): string {
+export function taskStatusLabel(status: TaskDto["status"] | "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED") {
   switch (status) {
     case "ACTIVE":
       return "Ativa";
@@ -47,13 +47,37 @@ export function taskStatusLabel(status: TaskDto["status"] | "ACTIVE" | "ENDED" |
   }
 }
 
-export function occurrenceStatusLabel(status: "PENDING" | "COMPLETED" | "IGNORED", scheduledAt: string): string {
+export function taskStatusWithDateLabel(task: Pick<TaskDto, "status" | "isEnded" | "endedAt" | "canceledAt" | "abortedAt">) {
+  const baseLabel = taskStatusLabel(task.status);
+
+  if (!task.isEnded) {
+    return baseLabel;
+  }
+
+  const endedAt = task.endedAt ?? task.canceledAt ?? task.abortedAt;
+  return endedAt ? `${baseLabel} em ${formatDateTime(endedAt)}` : baseLabel;
+}
+
+export function occurrenceStatusLabel(status: "PENDING" | "COMPLETED" | "IGNORED", scheduledAt: string) {
   if (status === "COMPLETED") return "Concluida";
   if (status === "IGNORED") return "Ignorada";
   return new Date(scheduledAt).getTime() < Date.now() ? "Vencida" : "Proxima";
 }
 
-export function occurrenceActionLabel(action: string): string {
+export function occurrenceStatusWithDateLabel(
+  occurrence: Pick<OccurrenceDetailsDto, "status" | "scheduledAt" | "isEnded" | "completedAt" | "ignoredAt" | "treatedAt">,
+) {
+  const baseLabel = occurrenceStatusLabel(occurrence.status, occurrence.scheduledAt);
+
+  if (!occurrence.isEnded) {
+    return baseLabel;
+  }
+
+  const endedAt = occurrence.completedAt ?? occurrence.ignoredAt ?? occurrence.treatedAt;
+  return endedAt ? `${baseLabel} em ${formatDateTime(endedAt)}` : baseLabel;
+}
+
+export function occurrenceActionLabel(action: string) {
   switch (action) {
     case "CREATED":
       return "Criada";
@@ -72,7 +96,7 @@ export function occurrenceActionLabel(action: string): string {
   }
 }
 
-export function taskHistoryActionLabel(action: string): string {
+export function taskHistoryActionLabel(action: string) {
   switch (action) {
     case "CREATED":
       return "Criada";

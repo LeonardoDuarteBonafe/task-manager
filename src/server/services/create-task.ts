@@ -9,6 +9,7 @@ import {
   normalizeRecurrenceWeekdays,
   parseScheduledTimeToMinutes,
 } from "./task-domain/recurrence";
+import { getNextTaskCode } from "./code-sequence";
 import { recordTaskHistory } from "./task-history";
 import type { CreateTaskInput } from "./task-domain/types";
 
@@ -35,9 +36,12 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   const weekdays = normalizeRecurrenceWeekdays(input.recurrenceType, input.weekdays);
 
   const task = await prisma.$transaction(async (tx) => {
+    const taskCode = await getNextTaskCode(tx, input.userId);
+
     const createdTask = await tx.task.create({
       data: {
         userId: input.userId,
+        taskCode,
         title,
         notes: input.notes?.trim() || null,
         recurrenceType: input.recurrenceType,
@@ -48,6 +52,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
         weekdays,
         notificationRepeatMinutes,
         maxOccurrences: input.maxOccurrences ?? null,
+        isEnded: false,
         status: "ACTIVE",
       },
     });
@@ -57,6 +62,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       userId: input.userId,
       action: "CREATED",
       metadata: {
+        taskCode,
         recurrenceType: input.recurrenceType,
       },
     });

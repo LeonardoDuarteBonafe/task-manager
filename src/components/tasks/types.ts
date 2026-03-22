@@ -8,6 +8,7 @@ export type TaskHistoryDto = {
 export type TaskDto = {
   id: string;
   userId: string;
+  taskCode: number;
   title: string;
   notes: string | null;
   recurrenceType: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -19,6 +20,7 @@ export type TaskDto = {
   notificationRepeatMinutes: number;
   maxOccurrences: number | null;
   isFavorite: boolean;
+  isEnded: boolean;
   status: "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED";
   createdAt: string;
   updatedAt: string;
@@ -32,7 +34,9 @@ export type OccurrenceDto = {
   id: string;
   taskId: string;
   userId: string;
+  recurrenceCode: number;
   scheduledAt: string;
+  isEnded: boolean;
   status: "PENDING" | "COMPLETED" | "IGNORED";
   history: Array<{
     id: string;
@@ -41,6 +45,7 @@ export type OccurrenceDto = {
   }>;
   task: {
     id: string;
+    taskCode: number;
     title: string;
     notes: string | null;
     recurrenceType: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -48,6 +53,7 @@ export type OccurrenceDto = {
     weekdays: number[];
     timezone: string;
     isFavorite: boolean;
+    isEnded: boolean;
     status: "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED";
     updatedAt: string;
     endedAt: string | null;

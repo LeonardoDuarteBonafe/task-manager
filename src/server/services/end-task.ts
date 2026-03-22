@@ -60,6 +60,7 @@ async function transitionTaskStatus(
     const updatedTask = await tx.task.update({
       where: { id: input.taskId },
       data: {
+        isEnded: true,
         status: targetStatus,
         endedAt: targetStatus === "ENDED" ? actedAt : task.endedAt,
         canceledAt: targetStatus === "CANCELED" ? actedAt : task.canceledAt,

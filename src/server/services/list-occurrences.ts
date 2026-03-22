@@ -8,6 +8,7 @@ type ListOccurrencesPaginatedResult = {
       task: {
         select: {
           id: true;
+          taskCode: true;
           title: true;
           notes: true;
           recurrenceType: true;
@@ -15,6 +16,7 @@ type ListOccurrencesPaginatedResult = {
           weekdays: true;
           timezone: true;
           isFavorite: true;
+          isEnded: true;
           status: true;
           updatedAt: true;
           endedAt: true;
@@ -97,6 +99,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
 
   const where: Prisma.TaskOccurrenceWhereInput = {
     userId: input.userId,
+    ...(input.recurrenceCode ? { recurrenceCode: input.recurrenceCode } : {}),
     ...occurrenceWhere,
     ...(dateRange
       ? {
@@ -116,6 +119,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
         task: {
           select: {
             id: true,
+            taskCode: true,
             title: true,
             notes: true,
             recurrenceType: true,
@@ -123,6 +127,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
             weekdays: true,
             timezone: true,
             isFavorite: true,
+            isEnded: true,
             status: true,
             updatedAt: true,
             endedAt: true,

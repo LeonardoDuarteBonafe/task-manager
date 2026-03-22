@@ -25,6 +25,7 @@ export async function getTasks(input: ListTasksInput): Promise<GetTasksResult> {
 
   const where: Prisma.TaskWhereInput = {
     userId: input.userId,
+    ...(input.taskCode ? { taskCode: input.taskCode } : {}),
     ...(input.status ? { status: input.status } : {}),
     ...(input.favorite !== undefined ? { isFavorite: input.favorite } : {}),
   };

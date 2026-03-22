@@ -19,6 +19,7 @@ import type { OccurrenceDetailsDto, OccurrencePageDto } from "./types";
 const PAGE_SIZE = 10;
 
 type FilterState = {
+  recurrenceCode: string;
   status: string;
   dateFrom: string;
   dateTo: string;
@@ -37,6 +38,7 @@ export function RecurrencesPageClient() {
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
+    recurrenceCode: searchParams.get("code") ?? "",
     status: searchParams.get("status") ?? "",
     dateFrom: searchParams.get("dateFrom") ?? "",
     dateTo: searchParams.get("dateTo") ?? "",
@@ -57,6 +59,7 @@ export function RecurrencesPageClient() {
       setMockOccurrences(dataset.occurrences);
       setData(
         buildMockOccurrencePage(dataset.occurrences, page, {
+          recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
           status: filters.status,
           dateFrom: filters.dateFrom,
           dateTo: filters.dateTo,
@@ -76,6 +79,7 @@ export function RecurrencesPageClient() {
       sortOrder: filters.sortOrder,
     });
 
+    if (filters.recurrenceCode) query.set("recurrenceCode", filters.recurrenceCode);
     if (filters.status) query.set("status", filters.status);
     if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) query.set("dateTo", filters.dateTo);
@@ -95,6 +99,7 @@ export function RecurrencesPageClient() {
 
   useEffect(() => {
     setFilters({
+      recurrenceCode: searchParams.get("code") ?? "",
       status: searchParams.get("status") ?? "",
       dateFrom: searchParams.get("dateFrom") ?? "",
       dateTo: searchParams.get("dateTo") ?? "",
@@ -118,6 +123,7 @@ export function RecurrencesPageClient() {
     const query = new URLSearchParams();
     query.set("page", "1");
     query.set("sortOrder", filters.sortOrder);
+    if (filters.recurrenceCode) query.set("code", filters.recurrenceCode);
     if (filters.status) query.set("status", filters.status);
     if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) query.set("dateTo", filters.dateTo);
@@ -133,6 +139,7 @@ export function RecurrencesPageClient() {
           occurrence.id === occurrenceId
             ? {
                 ...occurrence,
+                isEnded: true,
                 status: (action === "complete" ? "COMPLETED" : "IGNORED") as "COMPLETED" | "IGNORED",
                 treatedAt: new Date().toISOString(),
                 completedAt: action === "complete" ? new Date().toISOString() : occurrence.completedAt,
@@ -146,6 +153,7 @@ export function RecurrencesPageClient() {
         );
         setData(
           buildMockOccurrencePage(next, page, {
+            recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
             status: filters.status,
             dateFrom: filters.dateFrom,
             dateTo: filters.dateTo,
@@ -172,49 +180,13 @@ export function RecurrencesPageClient() {
     }
   }
 
-  async function handleTaskLifecycle(taskId: string, action: "cancel" | "abort") {
-    if (!userId) return;
-    if (isMockMode) {
-      setMockOccurrences((current) => {
-        const now = Date.now();
-        const next = current.filter(
-          (occurrence) => occurrence.taskId !== taskId || new Date(occurrence.scheduledAt).getTime() < now,
-        );
-        setData(
-          buildMockOccurrencePage(next, page, {
-            status: filters.status,
-            dateFrom: filters.dateFrom,
-            dateTo: filters.dateTo,
-            recurrenceType: filters.recurrenceType,
-            sortOrder: filters.sortOrder,
-          }),
-        );
-        return next;
-      });
-      return;
-    }
-    setActionLoadingId(taskId);
-    setError(null);
-    try {
-      await apiRequest(`/api/tasks/${taskId}/${action}`, {
-        method: "POST",
-        body: JSON.stringify({ userId }),
-      });
-      await loadData();
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Acao nao concluida.");
-    } finally {
-      setActionLoadingId(null);
-    }
-  }
-
   const items = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
 
   return (
     <AppShell subtitle="Filtre, abra detalhes em modal e acompanhe o historico de cada recorrencia." title="Recorrencias">
       <Card className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-6">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
             <Select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
@@ -230,6 +202,15 @@ export function RecurrencesPageClient() {
             </Select>
           </div>
           <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Codigo</label>
+            <Input
+              inputMode="numeric"
+              onChange={(event) => setFilters((current) => ({ ...current, recurrenceCode: event.target.value.replace(/\D/g, "") }))}
+              placeholder="Ex.: 24"
+              value={filters.recurrenceCode}
+            />
+          </div>
+          <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Desde</label>
             <Input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} />
           </div>
@@ -239,10 +220,7 @@ export function RecurrencesPageClient() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Tipo</label>
-            <Select
-              value={filters.recurrenceType}
-              onChange={(event) => setFilters((current) => ({ ...current, recurrenceType: event.target.value }))}
-            >
+            <Select value={filters.recurrenceType} onChange={(event) => setFilters((current) => ({ ...current, recurrenceType: event.target.value }))}>
               <option value="">Todos os tipos</option>
               <option value="ONCE">Uma vez</option>
               <option value="DAILY">Diariamente</option>
@@ -277,11 +255,10 @@ export function RecurrencesPageClient() {
               key={occurrence.id}
               loadingActionId={actionLoadingId}
               occurrence={occurrence}
-              onAbortTask={(taskId) => handleTaskLifecycle(taskId, "abort")}
-              onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
               onComplete={(id) => handleOccurrenceAction(id, "complete")}
               onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
               onOpen={setSelectedOccurrenceId}
+              onViewTask={(taskCode) => router.push(`/tasks?code=${taskCode}&page=1`)}
             />
           ))
         : null}

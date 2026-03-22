@@ -47,6 +47,7 @@ export async function completeOccurrence(input: CompleteOccurrenceInput): Promis
     const updated = await tx.taskOccurrence.update({
       where: { id: occurrence.id },
       data: {
+        isEnded: true,
         status: "COMPLETED",
         treatedAt: completedAt,
         completedAt,

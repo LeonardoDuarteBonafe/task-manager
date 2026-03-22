@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { PageState } from "@/components/ui/page-state";
 import { apiRequest } from "@/lib/http-client";
-import { formatDateTime, occurrenceActionLabel, occurrenceStatusLabel, recurrenceLabel, taskStatusLabel } from "./format";
+import { formatDateTime, occurrenceActionLabel, occurrenceStatusWithDateLabel, recurrenceLabel, taskStatusWithDateLabel } from "./format";
 import type { OccurrenceDetailsDto } from "./types";
 
 type OccurrenceDialogProps = {
@@ -74,14 +74,16 @@ export function OccurrenceDialog({
               {occurrence.task.notes ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{occurrence.task.notes}</p> : null}
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-              {occurrenceStatusLabel(occurrence.status, occurrence.scheduledAt)}
+              {occurrenceStatusWithDateLabel(occurrence)}
             </span>
           </div>
 
           <div className="grid gap-3 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
+            <p>Codigo da recorrencia: #{occurrence.recurrenceCode}</p>
+            <p>Codigo da tarefa: #{occurrence.task.taskCode}</p>
             <p>Data e hora: {formatDateTime(occurrence.scheduledAt)}</p>
             <p>Recorrencia: {recurrenceLabel(occurrence.task)}</p>
-            <p>Status da tarefa: {taskStatusLabel(occurrence.task.status)}</p>
+            <p>Status da tarefa: {taskStatusWithDateLabel(occurrence.task)}</p>
             <p>Horario previsto da tarefa: {occurrence.task.scheduledTime}</p>
             <p>Favorita: {occurrence.task.isFavorite ? "Sim" : "Nao"}</p>
             <p>Tentativas de notificacao: {occurrence.notificationAttempts ?? 0}</p>

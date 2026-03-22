@@ -12,9 +12,8 @@ type OccurrenceSectionProps = {
   actionLoadingId?: string | null;
   onComplete: (id: string) => Promise<void>;
   onIgnore: (id: string) => Promise<void>;
-  onCancelTask?: (taskId: string) => Promise<void>;
-  onAbortTask?: (taskId: string) => Promise<void>;
   onOpen?: (id: string) => void;
+  onViewTask?: (taskCode: number) => void;
   viewAllHref?: string;
 };
 
@@ -27,9 +26,8 @@ export function OccurrenceSection({
   actionLoadingId,
   onComplete,
   onIgnore,
-  onCancelTask,
-  onAbortTask,
   onOpen,
+  onViewTask,
   viewAllHref,
 }: OccurrenceSectionProps) {
   return (
@@ -51,11 +49,10 @@ export function OccurrenceSection({
               key={occurrence.id}
               loadingActionId={actionLoadingId}
               occurrence={occurrence}
-              onAbortTask={onAbortTask}
-              onCancelTask={onCancelTask}
               onComplete={onComplete}
               onIgnore={onIgnore}
               onOpen={onOpen}
+              onViewTask={onViewTask}
             />
           ))
         : null}

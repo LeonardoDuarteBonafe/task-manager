@@ -99,6 +99,7 @@ export default function DashboardPage() {
           occurrence.id === occurrenceId
             ? {
                 ...occurrence,
+                isEnded: true,
                 status: (action === "complete" ? "COMPLETED" : "IGNORED") as "COMPLETED" | "IGNORED",
                 history: [
                   {
@@ -121,49 +122,6 @@ export default function DashboardPage() {
     setError(null);
     try {
       await apiRequest(`/api/occurrences/${occurrenceId}/${action === "complete" ? "complete" : "ignore"}`, {
-        method: "POST",
-        body: JSON.stringify({ userId }),
-      });
-      await loadData();
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Acao nao concluida.");
-    } finally {
-      setActionLoadingId(null);
-    }
-  }
-
-  async function handleTaskLifecycle(taskId: string, action: "cancel" | "abort") {
-    if (!userId) return;
-    if (isMockMode) {
-      setMockTasks((current) => {
-        const nextTasks = current.map((task) =>
-          task.id === taskId
-            ? {
-                ...task,
-                status: (action === "cancel" ? "CANCELED" : "ABORTED") as "CANCELED" | "ABORTED",
-                canceledAt: action === "cancel" ? new Date().toISOString() : task.canceledAt,
-                abortedAt: action === "abort" ? new Date().toISOString() : task.abortedAt,
-              }
-            : task,
-        );
-        setFavorites(buildMockTaskPage(nextTasks.filter((task) => task.isFavorite), 1).items.slice(0, 3));
-        return nextTasks;
-      });
-      setMockOccurrences((current) => {
-        const now = Date.now();
-        const nextOccurrences = current.filter((occurrence) =>
-          occurrence.taskId !== taskId || new Date(occurrence.scheduledAt).getTime() < now,
-        );
-        setOverdue(buildMockOccurrencePage(nextOccurrences, 1, { status: "OVERDUE", sortOrder: "oldest" }).items.slice(0, 3));
-        setUpcoming(buildMockOccurrencePage(nextOccurrences, 1, { status: "UPCOMING", sortOrder: "oldest" }).items.slice(0, 3));
-        return nextOccurrences;
-      });
-      return;
-    }
-    setActionLoadingId(taskId);
-    setError(null);
-    try {
-      await apiRequest(`/api/tasks/${taskId}/${action}`, {
         method: "POST",
         body: JSON.stringify({ userId }),
       });
@@ -231,11 +189,10 @@ export default function DashboardPage() {
             error={error}
             loading={loading}
             occurrences={upcoming}
-            onAbortTask={(taskId) => handleTaskLifecycle(taskId, "abort")}
-            onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
             onComplete={(id) => handleOccurrenceAction(id, "complete")}
             onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
             onOpen={setSelectedOccurrenceId}
+            onViewTask={(taskCode) => router.push(`/tasks?code=${taskCode}&page=1`)}
             title="Proximas"
             viewAllHref="/recorrencias?status=UPCOMING&page=1"
           />
@@ -245,11 +202,10 @@ export default function DashboardPage() {
             error={error}
             loading={loading}
             occurrences={overdue}
-            onAbortTask={(taskId) => handleTaskLifecycle(taskId, "abort")}
-            onCancelTask={(taskId) => handleTaskLifecycle(taskId, "cancel")}
             onComplete={(id) => handleOccurrenceAction(id, "complete")}
             onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
             onOpen={setSelectedOccurrenceId}
+            onViewTask={(taskCode) => router.push(`/tasks?code=${taskCode}&page=1`)}
             title="Vencidas"
             viewAllHref="/recorrencias?status=OVERDUE&page=1"
           />
