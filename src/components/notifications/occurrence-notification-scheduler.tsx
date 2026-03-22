@@ -8,6 +8,7 @@ import {
   NOTIFICATIONS_SETTINGS_CHANGED_EVENT,
   getNotificationPermission,
   getNotificationsEnabled,
+  hasActiveCurrentDevicePushSubscription,
   isNotificationSupported,
   showTaskNotificationPreview,
 } from "@/lib/notifications/web-notifications";
@@ -146,6 +147,12 @@ export function OccurrenceNotificationScheduler() {
 
   const syncCandidates = useEventCallback(async () => {
     if (!userId || !isRuntimeReady()) {
+      clearAllTimers();
+      candidateMapRef.current.clear();
+      return;
+    }
+
+    if (await hasActiveCurrentDevicePushSubscription(userId)) {
       clearAllTimers();
       candidateMapRef.current.clear();
       return;

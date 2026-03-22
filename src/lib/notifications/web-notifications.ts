@@ -10,6 +10,15 @@ type BrowserNotificationOptions = {
   url?: string;
 };
 
+type PushSubscriptionPayload = {
+  endpoint: string;
+  expirationTime: number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+};
+
 function formatNotificationSentAt(date: Date) {
   return date.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -24,6 +33,14 @@ export function isNotificationSupported() {
 
 export function isServiceWorkerSupported() {
   return typeof navigator !== "undefined" && "serviceWorker" in navigator;
+}
+
+export function isPushManagerSupported() {
+  return typeof window !== "undefined" && isServiceWorkerSupported() && "PushManager" in window;
+}
+
+export function isBackgroundPushAvailable() {
+  return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) && isPushManagerSupported();
 }
 
 export function getNotificationPermission() {
@@ -111,6 +128,142 @@ export async function getNotificationServiceWorkerRegistration() {
   ]);
 
   return readyOrTimeout;
+}
+
+function decodeBase64Url(base64Url: string) {
+  const normalized = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const base64 = normalized + padding;
+  const raw = window.atob(base64);
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+}
+
+function mapPushSubscriptionPayload(subscription: PushSubscription): PushSubscriptionPayload {
+  const json = subscription.toJSON();
+
+  return {
+    endpoint: subscription.endpoint,
+    expirationTime: subscription.expirationTime ?? null,
+    keys: {
+      p256dh: json.keys?.p256dh ?? "",
+      auth: json.keys?.auth ?? "",
+    },
+  };
+}
+
+export async function getCurrentPushSubscription() {
+  if (!isBackgroundPushAvailable()) {
+    return null;
+  }
+
+  const registration = await getNotificationServiceWorkerRegistration();
+
+  if (!registration) {
+    return null;
+  }
+
+  return registration.pushManager.getSubscription();
+}
+
+export async function ensureDevicePushSubscription(userId: string, deviceLabel?: string) {
+  if (!isBackgroundPushAvailable()) {
+    return null;
+  }
+
+  const registration = await getNotificationServiceWorkerRegistration();
+
+  if (!registration) {
+    return null;
+  }
+
+  const existingSubscription = await registration.pushManager.getSubscription();
+  const subscription =
+    existingSubscription ??
+    (await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeBase64Url(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+    }));
+
+  const payload = mapPushSubscriptionPayload(subscription);
+
+  const response = await fetch("/api/notifications/push-subscriptions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      userId,
+      subscription: payload,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      deviceLabel,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Nao foi possivel registrar este dispositivo para Web Push.");
+  }
+
+  return subscription;
+}
+
+export async function removeDevicePushSubscription(userId: string) {
+  const subscription = await getCurrentPushSubscription();
+
+  if (!subscription) {
+    return false;
+  }
+
+  const endpoint = subscription.endpoint;
+
+  const response = await fetch("/api/notifications/push-subscriptions", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      userId,
+      endpoint,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Nao foi possivel remover este dispositivo das notificacoes em segundo plano.");
+  }
+
+  await subscription.unsubscribe();
+  return true;
+}
+
+export async function hasActiveCurrentDevicePushSubscription(userId: string) {
+  const subscription = await getCurrentPushSubscription();
+
+  if (!subscription) {
+    return false;
+  }
+
+  const response = await fetch(
+    `/api/notifications/push-subscriptions?userId=${encodeURIComponent(userId)}&endpoint=${encodeURIComponent(subscription.endpoint)}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const payload = (await response.json()) as {
+    success: boolean;
+    data?: {
+      currentDeviceSubscribed?: boolean;
+    };
+  };
+
+  return payload.success === true && payload.data?.currentDeviceSubscribed === true;
 }
 
 function createNotificationId(channel: NotificationChannel) {

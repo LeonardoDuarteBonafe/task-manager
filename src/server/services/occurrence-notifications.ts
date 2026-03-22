@@ -181,15 +181,29 @@ export async function dispatchOccurrenceNotification(
 
     const nextAttempt = occurrence.notificationAttempts + 1;
 
-    const updated = await tx.taskOccurrence.update({
+    const updateResult = await tx.taskOccurrence.updateMany({
       where: {
         id: occurrence.id,
+        userId: input.userId,
+        isEnded: false,
+        status: "PENDING",
+        lastNotificationAt: occurrence.lastNotificationAt,
       },
       data: {
         lastNotificationAt: notifiedAt,
         notificationAttempts: {
           increment: 1,
         },
+      },
+    });
+
+    if (updateResult.count === 0) {
+      throw new DomainError("Occurrence notification was already dispatched by another process.");
+    }
+
+    const updated = await tx.taskOccurrence.findUnique({
+      where: {
+        id: occurrence.id,
       },
       select: {
         id: true,
@@ -212,6 +226,10 @@ export async function dispatchOccurrenceNotification(
         },
       },
     });
+
+    if (!updated) {
+      throw new DomainError("Occurrence not found.");
+    }
 
     await tx.taskOccurrenceHistory.create({
       data: {

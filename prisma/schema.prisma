@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  // directUrl = env("DIRECT_URL") // comentado por causa do IPv4
 }
 
 enum RecurrenceType {
@@ -60,6 +60,7 @@ model User {
   taskHistory       TaskHistory[]
   accounts          Account[]
   sessions          Session[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Task {
@@ -186,4 +187,25 @@ model VerificationToken {
   expires    DateTime
 
   @@id([identifier, token])
+}
+
+model PushSubscription {
+  id               String   @id
+  userId           String
+  endpoint         String   @unique
+  p256dh           String
+  auth             String
+  expirationTime   BigInt?
+  userAgent        String?
+  deviceLabel      String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  lastSeenAt       DateTime @default(now())
+  lastSuccessAt    DateTime?
+  lastFailureAt    DateTime?
+  failureReason    String?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
 }

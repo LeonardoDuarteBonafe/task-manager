@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { apiRequest } from "@/lib/http-client";
+import type { PushSubscriptionStatus } from "@/lib/notifications/push-subscription-types";
 import {
+  ensureDevicePushSubscription,
   disableNotifications,
   enableNotifications,
   getNotificationPermission,
   getNotificationsEnabled,
+  hasActiveCurrentDevicePushSubscription,
+  isBackgroundPushAvailable,
   isNotificationSupported,
+  removeDevicePushSubscription,
   isServiceWorkerSupported,
   showTaskNotificationPreview,
 } from "@/lib/notifications/web-notifications";
@@ -54,18 +61,40 @@ function getBadgeClasses(permission: PermissionState) {
 }
 
 export function NotificationPermissionCard({ mode = "settings" }: NotificationPermissionCardProps) {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
   const [permission, setPermission] = useState<PermissionState>("default");
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [pushStatus, setPushStatus] = useState<PushSubscriptionStatus | null>(null);
 
   const notificationSupported = isNotificationSupported();
   const serviceWorkerSupported = isServiceWorkerSupported();
+  const backgroundPushAvailable = isBackgroundPushAvailable();
 
   useEffect(() => {
     setPermission(getNotificationPermission());
     setEnabled(getNotificationsEnabled());
   }, []);
+
+  useEffect(() => {
+    if (!userId || !backgroundPushAvailable) {
+      setPushStatus(null);
+      return;
+    }
+
+    void (async () => {
+      const subscription = await hasActiveCurrentDevicePushSubscription(userId);
+      const status = await apiRequest<PushSubscriptionStatus>(`/api/notifications/push-subscriptions?userId=${encodeURIComponent(userId)}`);
+      setPushStatus({
+        ...status,
+        currentDeviceSubscribed: subscription,
+      });
+    })().catch(() => {
+      setPushStatus(null);
+    });
+  }, [backgroundPushAvailable, userId]);
 
   const message = useMemo(() => getPermissionMessage(permission, enabled), [enabled, permission]);
 
@@ -78,9 +107,22 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
 
     try {
       if (permission === "granted" && enabled) {
+        if (userId) {
+          await removeDevicePushSubscription(userId).catch(() => false);
+        }
         disableNotifications();
         setEnabled(false);
-        setFeedback("Notificacoes do aplicativo desabilitadas.");
+        setPushStatus((current) =>
+          current
+            ? {
+                ...current,
+                configured: Math.max(0, current.activeSubscriptionCount - (current.currentDeviceSubscribed ? 1 : 0)) > 0,
+                currentDeviceSubscribed: false,
+                activeSubscriptionCount: Math.max(0, current.activeSubscriptionCount - (current.currentDeviceSubscribed ? 1 : 0)),
+              }
+            : current,
+        );
+        setFeedback("Notificacoes do aplicativo desabilitadas neste dispositivo.");
         return;
       }
 
@@ -90,7 +132,17 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
       setEnabled(nextEnabled);
 
       if (nextPermission === "granted" && nextEnabled) {
-        setFeedback("Notificacoes habilitadas com sucesso.");
+        if (userId && backgroundPushAvailable) {
+          await ensureDevicePushSubscription(userId);
+          const status = await apiRequest<PushSubscriptionStatus>(`/api/notifications/push-subscriptions?userId=${encodeURIComponent(userId)}`);
+          setPushStatus({
+            ...status,
+            currentDeviceSubscribed: true,
+          });
+          setFeedback("Notificacoes habilitadas com Web Push ativo neste dispositivo.");
+        } else {
+          setFeedback("Notificacoes habilitadas com sucesso.");
+        }
       } else if (nextPermission === "denied") {
         setFeedback("A permissao foi negada neste navegador.");
       } else if (nextPermission === "unsupported") {
@@ -137,7 +189,19 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
         <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">
           <span className="font-medium text-slate-900 dark:text-slate-100">Aplicativo:</span> {enabled ? "habilitado" : "desabilitado"}
         </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">
+          <span className="font-medium text-slate-900 dark:text-slate-100">Push em segundo plano:</span>{" "}
+          {backgroundPushAvailable ? (pushStatus?.currentDeviceSubscribed ? "ativo neste dispositivo" : "disponivel") : "indisponivel"}
+        </div>
       </div>
+
+      {mode === "settings" && backgroundPushAvailable ? (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {pushStatus?.currentDeviceSubscribed
+            ? `Web Push ativo neste dispositivo. Dispositivos ativos: ${pushStatus.activeSubscriptionCount}.`
+            : "Ative as notificacoes para registrar este dispositivo e permitir alertas com o app fechado."}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {canToggle ? (

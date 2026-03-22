@@ -8,6 +8,15 @@ export { ignoreOccurrence } from "./ignore-occurrence";
 export { endTask } from "./end-task";
 export { cancelTask } from "./end-task";
 export { abortTask } from "./end-task";
+export {
+  getPushSubscriptionStatus,
+  listActivePushSubscriptions,
+  listActivePushSubscriptionsWithKeys,
+  markPushSubscriptionDelivery,
+  removePushSubscription,
+  upsertPushSubscription,
+} from "./push-subscriptions";
+export { sendDueOccurrencePushNotifications } from "./send-occurrence-push-notifications";
 export { getTasks } from "./get-tasks";
 export { listOccurrencesPaginated } from "./list-occurrences";
 export { updateTask } from "./update-task";
