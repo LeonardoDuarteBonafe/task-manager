@@ -1,5 +1,6 @@
 const NOTIFICATIONS_ENABLED_KEY = "taskmanager-notifications-enabled";
 const NOTIFICATION_ICON = "/icons/icon-192.svg";
+export const NOTIFICATIONS_SETTINGS_CHANGED_EVENT = "taskmanager:notifications-settings-changed";
 
 export type NotificationChannel = "desktop" | "mobile";
 
@@ -56,6 +57,7 @@ export function setNotificationsEnabled(enabled: boolean) {
   }
 
   window.localStorage.setItem(NOTIFICATIONS_ENABLED_KEY, String(enabled));
+  window.dispatchEvent(new CustomEvent(NOTIFICATIONS_SETTINGS_CHANGED_EVENT, { detail: { enabled } }));
 }
 
 export async function requestNotificationPermission() {

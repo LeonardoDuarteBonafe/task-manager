@@ -2,6 +2,7 @@ export { createTask } from "./create-task";
 export { generateOccurrences } from "./generate-occurrences";
 export { getOverdueOccurrences } from "./get-overdue-occurrences";
 export { getUpcomingOccurrences } from "./get-upcoming-occurrences";
+export { dispatchOccurrenceNotification, listOccurrenceNotificationCandidates } from "./occurrence-notifications";
 export { completeOccurrence } from "./complete-occurrence";
 export { ignoreOccurrence } from "./ignore-occurrence";
 export { endTask } from "./end-task";
