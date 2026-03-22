@@ -10,6 +10,7 @@ type DialogProps = {
   description?: string;
   children: React.ReactNode;
   size?: "md" | "lg" | "xl";
+  bodyClassName?: string;
 };
 
 const sizeClasses = {
@@ -18,7 +19,7 @@ const sizeClasses = {
   xl: "max-w-5xl",
 };
 
-export function Dialog({ open, onClose, title, description, children, size = "lg" }: DialogProps) {
+export function Dialog({ open, onClose, title, description, children, size = "lg", bodyClassName }: DialogProps) {
   useEffect(() => {
     if (!open) {
       return undefined;
@@ -68,7 +69,7 @@ export function Dialog({ open, onClose, title, description, children, size = "lg
             x
           </button>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        <div className={cn("min-h-0 flex-1 overflow-y-auto p-5", bodyClassName)}>{children}</div>
       </div>
     </div>
   );

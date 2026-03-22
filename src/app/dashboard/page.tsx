@@ -255,6 +255,9 @@ export default function DashboardPage() {
         userId={userId ?? ""}
         initialOccurrence={(mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) as never) ?? null}
         isMockMode={isMockMode}
+        loadingActionId={actionLoadingId}
+        onComplete={(id) => handleOccurrenceAction(id, "complete")}
+        onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
       />
     </AppShell>
   );

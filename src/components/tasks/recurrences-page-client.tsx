@@ -34,6 +34,7 @@ export function RecurrencesPageClient() {
   const { status, data: session } = useSession();
   const userId = session?.user?.id;
   const isMockMode = isForcedUser(session?.user);
+  const occurrenceIdFromQuery = searchParams.get("occurrenceId");
 
   const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
@@ -109,6 +110,10 @@ export function RecurrencesPageClient() {
   }, [searchParams]);
 
   useEffect(() => {
+    setSelectedOccurrenceId(occurrenceIdFromQuery ?? null);
+  }, [occurrenceIdFromQuery]);
+
+  useEffect(() => {
     if (status === "unauthenticated") {
       router.replace("/login");
       return;
@@ -123,12 +128,25 @@ export function RecurrencesPageClient() {
     const query = new URLSearchParams();
     query.set("page", "1");
     query.set("sortOrder", filters.sortOrder);
+    if (occurrenceIdFromQuery) query.set("occurrenceId", occurrenceIdFromQuery);
     if (filters.recurrenceCode) query.set("code", filters.recurrenceCode);
     if (filters.status) query.set("status", filters.status);
     if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) query.set("dateTo", filters.dateTo);
     if (filters.recurrenceType) query.set("recurrenceType", filters.recurrenceType);
     router.push(`${pathname}?${query.toString()}`);
+  }
+
+  function handleCloseOccurrenceDialog() {
+    setSelectedOccurrenceId(null);
+
+    if (!occurrenceIdFromQuery) {
+      return;
+    }
+
+    const query = new URLSearchParams(searchParams.toString());
+    query.delete("occurrenceId");
+    router.replace(query.toString() ? `${pathname}?${query.toString()}` : pathname);
   }
 
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
@@ -285,11 +303,14 @@ export function RecurrencesPageClient() {
 
       <OccurrenceDialog
         occurrenceId={selectedOccurrenceId}
-        onClose={() => setSelectedOccurrenceId(null)}
+        onClose={handleCloseOccurrenceDialog}
         open={Boolean(selectedOccurrenceId)}
         userId={userId ?? ""}
         initialOccurrence={mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null}
         isMockMode={isMockMode}
+        loadingActionId={actionLoadingId}
+        onComplete={(id) => handleOccurrenceAction(id, "complete")}
+        onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
       />
     </AppShell>
   );

@@ -7,6 +7,7 @@ export type NotificationChannel = "desktop" | "mobile";
 type BrowserNotificationOptions = {
   channel?: NotificationChannel;
   notificationId?: string;
+  url?: string;
 };
 
 function formatNotificationSentAt(date: Date) {
@@ -120,13 +121,14 @@ function createNotificationId(channel: NotificationChannel) {
   return `${channel}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function buildNotificationOptions(body: string, notificationId: string) {
+function buildNotificationOptions(body: string, notificationId: string, url?: string) {
   return {
     body,
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_ICON,
     data: {
       notificationId,
+      url: url ?? "/dashboard",
     },
   };
 }
@@ -138,7 +140,7 @@ export async function showNotificationPreview(title: string, body: string, optio
 
   const channel = options.channel ?? "desktop";
   const notificationId = options.notificationId ?? createNotificationId(channel);
-  const notificationOptions = buildNotificationOptions(body, notificationId);
+  const notificationOptions = buildNotificationOptions(body, notificationId, options.url);
   const registration = await getNotificationServiceWorkerRegistration();
 
   if (registration) {
@@ -148,9 +150,16 @@ export async function showNotificationPreview(title: string, body: string, optio
   }
 
   if (typeof window !== "undefined" && "Notification" in window) {
-    new Notification(title, {
+    const notification = new Notification(title, {
       ...notificationOptions,
     });
+    const targetUrl = notificationOptions.data.url;
+
+    notification.onclick = () => {
+      window.focus();
+      window.location.assign(targetUrl);
+      notification.close();
+    };
 
     return true;
   }
@@ -158,10 +167,11 @@ export async function showNotificationPreview(title: string, body: string, optio
   return false;
 }
 
-export async function showTaskNotificationPreview(taskTitle: string, scheduledTime: string, sentAt = new Date()) {
+export async function showTaskNotificationPreview(taskTitle: string, scheduledTime: string, sentAt = new Date(), occurrenceId?: string) {
   const body = [`Horario: ${scheduledTime}`, `Notificacao enviada em ${formatNotificationSentAt(sentAt)}`].join("\n");
 
   return showNotificationPreview(taskTitle, body, {
     channel: "desktop",
+    url: occurrenceId ? `/recorrencias?occurrenceId=${encodeURIComponent(occurrenceId)}` : "/recorrencias",
   });
 }

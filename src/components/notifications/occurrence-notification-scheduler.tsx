@@ -114,7 +114,12 @@ export function OccurrenceNotificationScheduler() {
         });
 
         candidateMapRef.current.set(occurrenceId, result.occurrence);
-        await showTaskNotificationPreview(result.occurrence.task.title, result.occurrence.task.scheduledTime, new Date(result.notifiedAt));
+        await showTaskNotificationPreview(
+          result.occurrence.task.title,
+          result.occurrence.task.scheduledTime,
+          new Date(result.notifiedAt),
+          result.occurrence.id,
+        );
         scheduleCandidate(result.occurrence);
       });
     } catch {
