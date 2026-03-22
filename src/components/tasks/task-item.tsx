@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FinalizeTaskDialog } from "./finalize-task-dialog";
-import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusLabel } from "./format";
+import { recurrenceLabel, taskStatusLabel } from "./format";
 import type { TaskDto } from "./types";
 
 type TaskItemProps = {
@@ -32,12 +32,36 @@ function StarIcon({ filled }: { filled: boolean }) {
 
 export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTaskId }: TaskItemProps) {
   const [finalizeOpen, setFinalizeOpen] = useState(false);
+  const [favoriteAnimating, setFavoriteAnimating] = useState(false);
+  const animationTimerRef = useRef<number | null>(null);
   const isLoading = loadingTaskId === task.id;
-  const latestHistory = task.history[0];
 
   async function handleConfirmEnd(reason: string) {
     await onEndTask(task.id, reason || undefined);
     setFinalizeOpen(false);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (animationTimerRef.current) {
+        window.clearTimeout(animationTimerRef.current);
+      }
+    };
+  }, []);
+
+  function handleToggleFavoriteClick() {
+    setFavoriteAnimating(true);
+
+    if (animationTimerRef.current) {
+      window.clearTimeout(animationTimerRef.current);
+    }
+
+    animationTimerRef.current = window.setTimeout(() => {
+      setFavoriteAnimating(false);
+      animationTimerRef.current = null;
+    }, 220);
+
+    void onToggleFavorite(task.id, !task.isFavorite);
   }
 
   return (
@@ -45,56 +69,42 @@ export function TaskItem({ task, onEndTask, onToggleFavorite, onOpen, loadingTas
       <Card className="overflow-hidden p-0">
         <div className="flex flex-col gap-0 md:flex-row">
           <button
-            className="flex-1 space-y-3 px-5 py-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-900/60"
+            className="min-w-0 flex-1 px-5 py-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-900/60"
             onClick={() => onOpen(task.id, "view")}
             type="button"
           >
-            <div className="space-y-1">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{recurrenceLabel(task)}</p>
+            <h3 className="min-w-0 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
+
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm text-slate-600 dark:text-slate-400">{recurrenceLabel(task)}</p>
             </div>
 
-            <div className="grid gap-2 text-sm text-slate-600 dark:text-slate-400 sm:grid-cols-2">
-              <p>Horario: {task.scheduledTime}</p>
-              <p>Criada em: {formatDateTime(task.createdAt)}</p>
-              <p>Ultima edicao: {formatDateTime(task.updatedAt)}</p>
-              <p>Limite maximo: {task.maxOccurrences ?? "Infinito"}</p>
-            </div>
-
-            {latestHistory ? (
-              <p className="text-xs text-slate-500 dark:text-slate-500">
-                Ultima alteracao: {taskHistoryActionLabel(latestHistory.action)} em {formatDateTime(latestHistory.actedAt)}
-              </p>
-            ) : null}
+            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Horario: {task.scheduledTime}</p>
           </button>
 
-          <div className="flex w-full shrink-0 flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 md:w-[280px] md:border-l md:border-t-0 dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="flex items-start justify-between gap-2">
-              <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {taskStatusLabel(task.status)}
-              </span>
+          <div className="flex w-full shrink-0 flex-col justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 md:w-[300px] md:border-l md:border-t-0 dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="flex items-start justify-between gap-3">
               <button
                 aria-label={task.isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                 className={cn(
-                  "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+                  "inline-flex h-10 w-10 items-center justify-center rounded-full border transition duration-200",
                   task.isFavorite
                     ? "border-amber-300 bg-amber-200 text-amber-700 dark:border-amber-400/40 dark:bg-amber-400/20 dark:text-amber-200"
                     : "border-slate-200 bg-white text-slate-500 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900",
+                  favoriteAnimating && "scale-110 shadow-sm",
                 )}
                 disabled={isLoading}
-                onClick={() => onToggleFavorite(task.id, !task.isFavorite)}
+                onClick={handleToggleFavoriteClick}
                 type="button"
               >
                 <StarIcon filled={task.isFavorite} />
               </button>
+              <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                {taskStatusLabel(task.status)}
+              </span>
             </div>
 
-            <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-              <p>Fim: {task.endedAt ? formatDateTime(task.endedAt) : task.canceledAt ? formatDateTime(task.canceledAt) : task.abortedAt ? formatDateTime(task.abortedAt) : "Em andamento"}</p>
-              <p>Favorita: {task.isFavorite ? "Sim" : "Nao"}</p>
-            </div>
-
-            <div className="mt-auto flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
               <Button onClick={() => onOpen(task.id, "edit")} type="button" variant="contrast">
                 Editar
               </Button>

@@ -15,6 +15,20 @@ import { apiRequest } from "@/lib/http-client";
 import { buildMockOccurrencePage, buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
 
+function updateOccurrenceFavorites(items: OccurrenceDto[], taskId: string, isFavorite: boolean) {
+  return items.map((occurrence) =>
+    occurrence.task.id === taskId
+      ? {
+          ...occurrence,
+          task: {
+            ...occurrence.task,
+            isFavorite,
+          },
+        }
+      : occurrence,
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { status, data: session } = useSession();
@@ -173,13 +187,21 @@ export default function DashboardPage() {
     }
     setActionLoadingId(taskId);
     setError(null);
+    const previousFavorites = favorites;
+    const previousOverdue = overdue;
+    const previousUpcoming = upcoming;
+    setFavorites((current) => current.filter((task) => (isFavorite ? true : task.id !== taskId)));
+    setOverdue((current) => updateOccurrenceFavorites(current, taskId, isFavorite));
+    setUpcoming((current) => updateOccurrenceFavorites(current, taskId, isFavorite));
     try {
       await apiRequest(`/api/tasks/${taskId}/favorite`, {
         method: "POST",
         body: JSON.stringify({ userId, isFavorite }),
       });
-      await loadData();
     } catch (requestError) {
+      setFavorites(previousFavorites);
+      setOverdue(previousOverdue);
+      setUpcoming(previousUpcoming);
       setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar favorito.");
     } finally {
       setActionLoadingId(null);

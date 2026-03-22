@@ -24,6 +24,24 @@ type ModalState = {
   taskId: string | null;
 };
 
+function applyFavoriteToTaskPage(data: TaskPageDto | null, taskId: string, isFavorite: boolean, statusFilter: string) {
+  if (!data) return data;
+
+  const items =
+    statusFilter === "FAVORITES" && !isFavorite
+      ? data.items.filter((task) => task.id !== taskId)
+      : data.items.map((task) => (task.id === taskId ? { ...task, isFavorite } : task));
+
+  const total = statusFilter === "FAVORITES" && !isFavorite ? Math.max(0, data.total - 1) : data.total;
+
+  return {
+    ...data,
+    items,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / data.pageSize)),
+  };
+}
+
 export function TasksPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -155,13 +173,15 @@ export function TasksPageClient() {
     }
     setLoadingTaskId(taskIdValue);
     setError(null);
+    const previousTasksData = tasksData;
+    setTasksData((current) => applyFavoriteToTaskPage(current, taskIdValue, isFavorite, statusFilter));
     try {
       await apiRequest(`/api/tasks/${taskIdValue}/favorite`, {
         method: "POST",
         body: JSON.stringify({ userId, isFavorite }),
       });
-      await loadTasks();
     } catch (requestError) {
+      setTasksData(previousTasksData);
       setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar favorito.");
     } finally {
       setLoadingTaskId(null);
