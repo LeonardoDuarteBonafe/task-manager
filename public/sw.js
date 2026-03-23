@@ -74,18 +74,51 @@ self.addEventListener("push", (event) => {
     body: data.body || "Voce tem uma nova atualizacao de tarefa.",
     icon: "/icons/icon-192.svg",
     badge: "/icons/icon-192.svg",
+    actions:
+      data.occurrenceId && data.userId
+        ? [
+            { action: "complete", title: "Concluir" },
+            { action: "ignore", title: "Ignorar" },
+          ]
+        : [],
     data: {
       notificationId,
       channel: data.channel || "desktop",
+      occurrenceId: data.occurrenceId || null,
       url: data.url || "/dashboard",
+      userId: data.userId || null,
     },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+self.addEventListener("notificationclose", () => undefined);
+
+async function handleOccurrenceNotificationAction(notification, action) {
+  const occurrenceId = notification.data?.occurrenceId;
+  const userId = notification.data?.userId;
+
+  if (!occurrenceId || !userId || (action !== "complete" && action !== "ignore")) {
+    return;
+  }
+
+  await fetch(`/api/occurrences/${occurrenceId}/${action}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+
+  if (event.action === "complete" || event.action === "ignore") {
+    event.waitUntil(handleOccurrenceNotificationAction(event.notification, event.action));
+    return;
+  }
 
   const targetUrl = event.notification.data?.url || "/dashboard";
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { buildOccurrenceNotificationContent } from "@/lib/notifications/occurrence-notification-content";
 import { DomainError } from "./task-domain/errors";
 import { dispatchOccurrenceNotification } from "./occurrence-notifications";
 import { listActivePushSubscriptionsWithKeys, markPushSubscriptionDelivery } from "./push-subscriptions";
@@ -59,16 +60,26 @@ export async function sendDueOccurrencePushNotifications(
       }
 
       let deliveredToAnyDevice = false;
+      const notificationAttempt = candidate.notificationAttempts + 1;
+      const content = buildOccurrenceNotificationContent({
+        taskTitle: candidate.task.title,
+        scheduledTime: candidate.task.scheduledTime,
+        sentAt: referenceDate,
+        notificationAttempt,
+      });
 
       for (const subscription of subscriptions) {
         try {
           await sendWebPush({
             subscription,
             payload: {
-              title: candidate.task.title,
-              body: `Horario: ${candidate.task.scheduledTime}`,
+              title: content.title,
+              body: content.body,
               url: `/recorrencias?occurrenceId=${encodeURIComponent(candidate.id)}`,
               occurrenceId: candidate.id,
+              userId: candidate.userId,
+              notificationAttempt,
+              isReminder: content.isReminder,
               notificationId: `push-${candidate.id}-${referenceDate.getTime()}`,
               channel: "desktop",
             },

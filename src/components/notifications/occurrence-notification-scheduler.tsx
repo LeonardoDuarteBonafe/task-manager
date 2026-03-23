@@ -120,6 +120,8 @@ export function OccurrenceNotificationScheduler() {
           result.occurrence.task.scheduledTime,
           new Date(result.notifiedAt),
           result.occurrence.id,
+          result.occurrence.notificationAttempts,
+          result.occurrence.userId,
         );
         scheduleCandidate(result.occurrence);
       });

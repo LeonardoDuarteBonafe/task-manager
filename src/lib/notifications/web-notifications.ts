@@ -1,3 +1,5 @@
+import { buildOccurrenceNotificationContent } from "@/lib/notifications/occurrence-notification-content";
+
 const NOTIFICATIONS_ENABLED_KEY = "taskmanager-notifications-enabled";
 const NOTIFICATION_ICON = "/icons/icon-192.svg";
 export const NOTIFICATIONS_SETTINGS_CHANGED_EVENT = "taskmanager:notifications-settings-changed";
@@ -8,6 +10,12 @@ type BrowserNotificationOptions = {
   channel?: NotificationChannel;
   notificationId?: string;
   url?: string;
+  occurrenceId?: string;
+  userId?: string;
+  actions?: Array<{
+    action: string;
+    title: string;
+  }>;
 };
 
 type PushSubscriptionPayload = {
@@ -18,14 +26,6 @@ type PushSubscriptionPayload = {
     auth: string;
   };
 };
-
-function formatNotificationSentAt(date: Date) {
-  return date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
 
 export function isNotificationSupported() {
   return typeof window !== "undefined" && "Notification" in window;
@@ -274,14 +274,17 @@ function createNotificationId(channel: NotificationChannel) {
   return `${channel}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function buildNotificationOptions(body: string, notificationId: string, url?: string) {
+function buildNotificationOptions(body: string, notificationId: string, options: Pick<BrowserNotificationOptions, "actions" | "occurrenceId" | "url" | "userId"> = {}) {
   return {
     body,
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_ICON,
+    actions: options.actions,
     data: {
       notificationId,
-      url: url ?? "/dashboard",
+      occurrenceId: options.occurrenceId ?? null,
+      url: options.url ?? "/dashboard",
+      userId: options.userId ?? null,
     },
   };
 }
@@ -293,7 +296,7 @@ export async function showNotificationPreview(title: string, body: string, optio
 
   const channel = options.channel ?? "desktop";
   const notificationId = options.notificationId ?? createNotificationId(channel);
-  const notificationOptions = buildNotificationOptions(body, notificationId, options.url);
+  const notificationOptions = buildNotificationOptions(body, notificationId, options);
   const registration = await getNotificationServiceWorkerRegistration();
 
   if (registration) {
@@ -320,11 +323,50 @@ export async function showNotificationPreview(title: string, body: string, optio
   return false;
 }
 
-export async function showTaskNotificationPreview(taskTitle: string, scheduledTime: string, sentAt = new Date(), occurrenceId?: string) {
-  const body = [`Horario: ${scheduledTime}`, `Notificacao enviada em ${formatNotificationSentAt(sentAt)}`].join("\n");
+export function isIosDevice() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
 
-  return showNotificationPreview(taskTitle, body, {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+export function isStandaloneDisplayMode() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+
+  return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
+}
+
+export async function showTaskNotificationPreview(
+  taskTitle: string,
+  scheduledTime: string,
+  sentAt = new Date(),
+  occurrenceId?: string,
+  notificationAttempt = 1,
+  userId?: string,
+) {
+  const content = buildOccurrenceNotificationContent({
+    taskTitle,
+    scheduledTime,
+    sentAt,
+    notificationAttempt,
+  });
+
+  return showNotificationPreview(content.title, content.body, {
     channel: "desktop",
+    occurrenceId,
+    userId,
     url: occurrenceId ? `/recorrencias?occurrenceId=${encodeURIComponent(occurrenceId)}` : "/recorrencias",
+    actions:
+      occurrenceId && userId
+        ? [
+            { action: "complete", title: "Concluir" },
+            { action: "ignore", title: "Ignorar" },
+          ]
+        : undefined,
   });
 }

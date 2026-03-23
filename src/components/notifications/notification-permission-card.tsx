@@ -14,7 +14,9 @@ import {
   getNotificationsEnabled,
   hasActiveCurrentDevicePushSubscription,
   isBackgroundPushAvailable,
+  isIosDevice,
   isNotificationSupported,
+  isStandaloneDisplayMode,
   removeDevicePushSubscription,
   isServiceWorkerSupported,
   showTaskNotificationPreview,
@@ -72,6 +74,8 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
   const notificationSupported = isNotificationSupported();
   const serviceWorkerSupported = isServiceWorkerSupported();
   const backgroundPushAvailable = isBackgroundPushAvailable();
+  const iosDevice = isIosDevice();
+  const standaloneMode = isStandaloneDisplayMode();
 
   useEffect(() => {
     setPermission(getNotificationPermission());
@@ -160,7 +164,7 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
     setFeedback(null);
 
     try {
-      const shown = await showTaskNotificationPreview("Tomar remedio", "08:00");
+      const shown = await showTaskNotificationPreview("Tomar remedio", "08:00", new Date(), undefined, 1, userId);
       setFeedback(shown ? "Notificacao disparada com sucesso." : "Nao foi possivel exibir a notificacao. Verifique permissao e estado atual.");
     } finally {
       setLoading(false);
@@ -201,6 +205,14 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
             ? `Web Push ativo neste dispositivo. Dispositivos ativos: ${pushStatus.activeSubscriptionCount}.`
             : "Ative as notificacoes para registrar este dispositivo e permitir alertas com o app fechado."}
         </p>
+      ) : null}
+
+      {mode === "settings" && iosDevice ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          {standaloneMode
+            ? "iPhone detectado em modo app instalado. Este e o formato recomendado para receber notificacoes com o app fechado."
+            : "iPhone detectado. Para notificacoes com o app fechado, abra este site no Safari e use Compartilhar > Adicionar a Tela de Inicio."}
+        </div>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
