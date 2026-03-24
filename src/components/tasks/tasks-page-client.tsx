@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { apiRequest } from "@/lib/http-client";
 import { buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
+import { flushOfflineQueue, loadTaskPageFromCache, syncTaskPageFromServer } from "@/lib/offline/offline-store";
 import { TaskDialog } from "./task-dialog";
 import { type TaskFormValues } from "./task-form";
 import { TaskItem } from "./task-item";
@@ -50,7 +51,9 @@ export function TasksPageClient() {
   const userId = session?.user?.id;
   const isMockMode = isForcedUser(session?.user);
 
-  const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
+  const urlPage = Math.max(Number(searchParams.get("page") ?? "1"), 1);
+  const [offlinePage, setOfflinePage] = useState<number | null>(null);
+  const page = offlinePage ?? urlPage;
   const statusFilter = searchParams.get("status") ?? "";
   const taskCodeFilter = searchParams.get("code") ?? "";
 
@@ -92,10 +95,33 @@ export function TasksPageClient() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiRequest<TaskPageDto>(`/api/tasks?${query.toString()}`);
+      if (!navigator.onLine) {
+        const cachedData = await loadTaskPageFromCache(userId, page, {
+          status: statusFilter,
+          taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+        });
+        setTasksData(cachedData);
+        setError(null);
+        return;
+      }
+
+      await flushOfflineQueue();
+      const data = await syncTaskPageFromServer(userId, page, {
+        status: statusFilter,
+        taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+      });
       setTasksData(data);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Falha ao buscar tarefas.");
+      const cachedData = await loadTaskPageFromCache(userId, page, {
+        status: statusFilter,
+        taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+      });
+      setTasksData(cachedData);
+      if (cachedData.items.length === 0) {
+        setError(requestError instanceof Error ? requestError.message : "Falha ao buscar tarefas.");
+      } else {
+        setError(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -105,6 +131,10 @@ export function TasksPageClient() {
     setDraftStatus(statusFilter);
     setDraftCode(taskCodeFilter);
   }, [statusFilter, taskCodeFilter]);
+
+  useEffect(() => {
+    setOfflinePage(null);
+  }, [urlPage, statusFilter, taskCodeFilter]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -130,10 +160,24 @@ export function TasksPageClient() {
   }
 
   function applyFilter() {
+    if (!navigator.onLine) {
+      setOfflinePage(1);
+      return;
+    }
+
     const query = new URLSearchParams({ page: "1" });
     if (draftStatus) query.set("status", draftStatus);
     if (draftCode) query.set("code", draftCode);
     router.push(`/tasks?${query.toString()}`);
+  }
+
+  function goToPage(nextPage: number) {
+    if (!navigator.onLine) {
+      setOfflinePage(nextPage);
+      return;
+    }
+
+    router.push(`/tasks?${buildTasksPageQuery(searchParams, nextPage)}`);
   }
 
   async function handleTaskLifecycle(taskIdValue: string, action: "end", reason?: string) {
@@ -303,7 +347,20 @@ export function TasksPageClient() {
             <Button type="button" onClick={applyFilter}>
               Aplicar filtro
             </Button>
-            <Button onClick={() => router.push("/tasks")} type="button" variant="secondary">
+            <Button
+              onClick={() => {
+                if (!navigator.onLine) {
+                  setDraftStatus("");
+                  setDraftCode("");
+                  setOfflinePage(1);
+                  return;
+                }
+
+                router.push("/tasks");
+              }}
+              type="button"
+              variant="secondary"
+            >
               Limpar
             </Button>
           </div>
@@ -333,14 +390,10 @@ export function TasksPageClient() {
             Pagina {tasksData.page} de {tasksData.totalPages} ({tasksData.total} tarefas)
           </p>
           <div className="flex gap-2">
-            <Button disabled={page <= 1} onClick={() => router.push(`/tasks?${buildTasksPageQuery(searchParams, Math.max(1, page - 1))}`)} variant="secondary">
+            <Button disabled={page <= 1} onClick={() => goToPage(Math.max(1, page - 1))} variant="secondary">
               Anterior
             </Button>
-            <Button
-              disabled={page >= totalPages}
-              onClick={() => router.push(`/tasks?${buildTasksPageQuery(searchParams, Math.min(totalPages, page + 1))}`)}
-              variant="secondary"
-            >
+            <Button disabled={page >= totalPages} onClick={() => goToPage(Math.min(totalPages, page + 1))} variant="secondary">
               Proxima
             </Button>
           </div>
@@ -354,7 +407,7 @@ export function TasksPageClient() {
         open={modalState.open}
         taskId={modalState.taskId}
         userId={userId ?? ""}
-        initialTask={mockTasks.find((task) => task.id === modalState.taskId) ?? null}
+        initialTask={items.find((task) => task.id === modalState.taskId) ?? mockTasks.find((task) => task.id === modalState.taskId) ?? null}
         isMockMode={isMockMode}
         onMockCreate={handleMockCreate}
         onMockUpdate={handleMockUpdate}

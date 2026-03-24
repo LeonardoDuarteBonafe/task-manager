@@ -2,6 +2,7 @@ import type { RecurrenceType, TaskStatus } from "@prisma/client";
 
 export type CreateTaskInput = {
   userId: string;
+  clientId?: string;
   title: string;
   notes?: string | null;
   recurrenceType: RecurrenceType;
@@ -18,6 +19,7 @@ export type CreateTaskInput = {
 export type UpdateTaskInput = {
   taskId: string;
   userId: string;
+  clientId?: string;
   title?: string;
   notes?: string | null;
   recurrenceType?: RecurrenceType;

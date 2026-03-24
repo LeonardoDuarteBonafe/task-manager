@@ -66,6 +66,7 @@ model User {
 model Task {
   id                          String          @id @default(cuid())
   userId                      String
+  clientId                    String?
   taskCode                    Int
   title                       String
   notes                       String?
@@ -91,7 +92,9 @@ model Task {
 
   @@index([userId, status])
   @@index([userId, recurrenceType])
+  @@index([userId, clientId])
   @@unique([userId, taskCode])
+  @@unique([userId, clientId])
 }
 
 model TaskHistory {

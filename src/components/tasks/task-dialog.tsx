@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { PageState } from "@/components/ui/page-state";
 import { apiRequest } from "@/lib/http-client";
+import { saveTaskOffline, updateTaskOffline } from "@/lib/offline/offline-store";
 import type { TaskDto } from "./types";
 import { TaskForm, type TaskFormValues } from "./task-form";
-import { buildTaskPayload } from "./task-payload";
 import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusWithDateLabel } from "./format";
 
 type TaskDialogProps = {
@@ -60,6 +60,7 @@ export function TaskDialog({
         const data = await apiRequest<TaskDto>(`/api/tasks/${taskId}?userId=${encodeURIComponent(userId)}`);
         setTask(data);
       } catch (requestError) {
+        setTask(initialTask ?? null);
         setError(requestError instanceof Error ? requestError.message : "Falha ao carregar tarefa.");
       } finally {
         setLoading(false);
@@ -88,24 +89,27 @@ export function TaskDialog({
     setError(null);
 
     try {
+      let shouldRefreshInBackground = false;
+
       if (isMockMode && mode === "create" && onMockCreate) {
         await onMockCreate(values);
       } else if (isMockMode && taskId && onMockUpdate) {
         await onMockUpdate(taskId, values);
       } else if (mode === "create") {
-        await apiRequest("/api/tasks", {
-          method: "POST",
-          body: JSON.stringify(buildTaskPayload(values, userId)),
-        });
+        await saveTaskOffline(values, userId);
+        shouldRefreshInBackground = true;
       } else if (taskId) {
-        await apiRequest(`/api/tasks/${taskId}`, {
-          method: "PUT",
-          body: JSON.stringify(buildTaskPayload(values, userId)),
-        });
+        await updateTaskOffline(taskId, values, userId);
+        shouldRefreshInBackground = true;
       }
 
-      await onChanged();
       onClose();
+
+      if (shouldRefreshInBackground) {
+        void onChanged();
+      } else {
+        await onChanged();
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Nao foi possivel salvar a tarefa.");
     } finally {

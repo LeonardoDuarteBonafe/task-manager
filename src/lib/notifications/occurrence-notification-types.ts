@@ -9,6 +9,7 @@ export type OccurrenceNotificationCandidate = {
   notificationAttempts: number;
   task: {
     id: string;
+    clientId?: string | null;
     title: string;
     scheduledTime: string;
     notificationRepeatMinutes: number;

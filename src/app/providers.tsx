@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { OccurrenceNotificationScheduler } from "@/components/notifications/occurrence-notification-scheduler";
+import { OfflineSync } from "@/components/pwa/offline-sync";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 
 type ProvidersProps = {
@@ -13,6 +14,7 @@ export function Providers({ children }: ProvidersProps) {
     <SessionProvider>
       <ThemeProvider>
         {children}
+        <OfflineSync />
         <OccurrenceNotificationScheduler />
       </ThemeProvider>
     </SessionProvider>

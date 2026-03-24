@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { PageState } from "@/components/ui/page-state";
-import { apiRequest } from "@/lib/http-client";
+import { getOccurrenceDetailsFromCache, syncOccurrenceDetailsFromServer } from "@/lib/offline/offline-store";
 import { formatDateTime, occurrenceActionLabel, occurrenceStatusWithDateLabel, recurrenceLabel, taskStatusWithDateLabel } from "./format";
 import type { OccurrenceDetailsDto } from "./types";
 
@@ -58,9 +58,11 @@ export function OccurrenceDialog({
       setError(null);
       setHistoryPage(1);
       try {
-        const data = await apiRequest<OccurrenceDetailsDto>(`/api/occurrences/${occurrenceId}?userId=${encodeURIComponent(userId)}`);
+        const data = await syncOccurrenceDetailsFromServer(occurrenceId, userId);
         setOccurrence(data);
       } catch (requestError) {
+        const cached = await getOccurrenceDetailsFromCache(occurrenceId);
+        setOccurrence(cached ?? initialOccurrence ?? null);
         setError(requestError instanceof Error ? requestError.message : "Falha ao carregar recorrencia.");
       } finally {
         setLoading(false);

@@ -25,6 +25,18 @@ export async function completeOccurrence(input: CompleteOccurrenceInput): Promis
       throw new DomainError("Occurrence not found.");
     }
 
+    if (occurrence.status === "COMPLETED") {
+      const alreadyCompleted = await tx.taskOccurrence.findUnique({
+        where: { id: occurrence.id },
+      });
+
+      if (!alreadyCompleted) {
+        throw new DomainError("Occurrence not found.");
+      }
+
+      return alreadyCompleted;
+    }
+
     if (occurrence.status !== "PENDING") {
       throw new DomainError("Only pending occurrences can be completed.");
     }

@@ -9,9 +9,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
-import { apiRequest } from "@/lib/http-client";
 import { buildMockOccurrencePage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
+import {
+  applyOccurrenceActionOffline,
+  flushOfflineQueue,
+  loadOccurrencePageFromCache,
+  syncOccurrencePageFromServer,
+} from "@/lib/offline/offline-store";
 import { OccurrenceDialog } from "./occurrence-dialog";
 import { OccurrenceItem } from "./occurrence-item";
 import type { OccurrenceDetailsDto, OccurrencePageDto } from "./types";
@@ -36,7 +41,9 @@ export function RecurrencesPageClient() {
   const isMockMode = isForcedUser(session?.user);
   const occurrenceIdFromQuery = searchParams.get("occurrenceId");
 
-  const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
+  const urlPage = Math.max(Number(searchParams.get("page") ?? "1"), 1);
+  const [offlinePage, setOfflinePage] = useState<number | null>(null);
+  const page = offlinePage ?? urlPage;
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     recurrenceCode: searchParams.get("code") ?? "",
@@ -89,10 +96,45 @@ export function RecurrencesPageClient() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await apiRequest<OccurrencePageDto>(`/api/occurrences?${query.toString()}`);
+      if (!navigator.onLine) {
+        const cachedData = await loadOccurrencePageFromCache(userId, page, {
+          recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
+          status: filters.status,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          recurrenceType: filters.recurrenceType,
+          sortOrder: filters.sortOrder,
+        });
+        setData(cachedData);
+        setError(null);
+        return;
+      }
+
+      await flushOfflineQueue();
+      const payload = await syncOccurrencePageFromServer(userId, page, {
+        recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
+        status: filters.status,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        recurrenceType: filters.recurrenceType,
+        sortOrder: filters.sortOrder,
+      });
       setData(payload);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Falha ao carregar recorrencias.");
+      const cachedData = await loadOccurrencePageFromCache(userId, page, {
+        recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
+        status: filters.status,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        recurrenceType: filters.recurrenceType,
+        sortOrder: filters.sortOrder,
+      });
+      setData(cachedData);
+      if (cachedData.items.length === 0) {
+        setError(requestError instanceof Error ? requestError.message : "Falha ao carregar recorrencias.");
+      } else {
+        setError(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -110,6 +152,10 @@ export function RecurrencesPageClient() {
   }, [searchParams]);
 
   useEffect(() => {
+    setOfflinePage(null);
+  }, [urlPage, searchParams]);
+
+  useEffect(() => {
     setSelectedOccurrenceId(occurrenceIdFromQuery ?? null);
   }, [occurrenceIdFromQuery]);
 
@@ -125,6 +171,11 @@ export function RecurrencesPageClient() {
   }, [status, userId, router, loadData]);
 
   function applyFilters() {
+    if (!navigator.onLine) {
+      setOfflinePage(1);
+      return;
+    }
+
     const query = new URLSearchParams();
     query.set("page", "1");
     query.set("sortOrder", filters.sortOrder);
@@ -135,6 +186,15 @@ export function RecurrencesPageClient() {
     if (filters.dateTo) query.set("dateTo", filters.dateTo);
     if (filters.recurrenceType) query.set("recurrenceType", filters.recurrenceType);
     router.push(`${pathname}?${query.toString()}`);
+  }
+
+  function goToPage(nextPage: number) {
+    if (!navigator.onLine) {
+      setOfflinePage(nextPage);
+      return;
+    }
+
+    router.push(`/recorrencias?${buildPageQuery(searchParams, nextPage)}`);
   }
 
   function handleCloseOccurrenceDialog() {
@@ -186,10 +246,7 @@ export function RecurrencesPageClient() {
     setActionLoadingId(occurrenceId);
     setError(null);
     try {
-      await apiRequest(`/api/occurrences/${occurrenceId}/${action}`, {
-        method: "POST",
-        body: JSON.stringify({ userId }),
-      });
+      await applyOccurrenceActionOffline(occurrenceId, userId, action);
       await loadData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Acao nao concluida.");
@@ -258,7 +315,26 @@ export function RecurrencesPageClient() {
           <Button type="button" onClick={applyFilters}>
             Aplicar filtros
           </Button>
-          <Button onClick={() => router.push("/recorrencias")} type="button" variant="secondary">
+          <Button
+            onClick={() => {
+              if (!navigator.onLine) {
+                setFilters({
+                  recurrenceCode: "",
+                  status: "",
+                  dateFrom: "",
+                  dateTo: "",
+                  recurrenceType: "",
+                  sortOrder: "oldest",
+                });
+                setOfflinePage(1);
+                return;
+              }
+
+              router.push("/recorrencias");
+            }}
+            type="button"
+            variant="secondary"
+          >
             Limpar
           </Button>
         </div>
@@ -287,14 +363,10 @@ export function RecurrencesPageClient() {
             Pagina {data.page} de {data.totalPages} ({data.total} recorrencias)
           </p>
           <div className="flex gap-2">
-            <Button disabled={page <= 1} onClick={() => router.push(`/recorrencias?${buildPageQuery(searchParams, Math.max(1, page - 1))}`)} variant="secondary">
+            <Button disabled={page <= 1} onClick={() => goToPage(Math.max(1, page - 1))} variant="secondary">
               Anterior
             </Button>
-            <Button
-              disabled={page >= totalPages}
-              onClick={() => router.push(`/recorrencias?${buildPageQuery(searchParams, Math.min(totalPages, page + 1))}`)}
-              variant="secondary"
-            >
+            <Button disabled={page >= totalPages} onClick={() => goToPage(Math.min(totalPages, page + 1))} variant="secondary">
               Proxima
             </Button>
           </div>
@@ -306,7 +378,7 @@ export function RecurrencesPageClient() {
         onClose={handleCloseOccurrenceDialog}
         open={Boolean(selectedOccurrenceId)}
         userId={userId ?? ""}
-        initialOccurrence={mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null}
+        initialOccurrence={items.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? mockOccurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null}
         isMockMode={isMockMode}
         loadingActionId={actionLoadingId}
         onComplete={(id) => handleOccurrenceAction(id, "complete")}

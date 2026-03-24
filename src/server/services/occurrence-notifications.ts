@@ -30,6 +30,7 @@ function mapOccurrenceNotificationCandidate(
     notificationAttempts: number;
     task: {
       id: string;
+      clientId: string | null;
       title: string;
       scheduledTime: string;
       notificationRepeatMinutes: number;
@@ -49,6 +50,7 @@ function mapOccurrenceNotificationCandidate(
     notificationAttempts: occurrence.notificationAttempts,
     task: {
       id: occurrence.task.id,
+      clientId: occurrence.task.clientId,
       title: occurrence.task.title,
       scheduledTime: occurrence.task.scheduledTime,
       notificationRepeatMinutes: occurrence.task.notificationRepeatMinutes,
@@ -120,6 +122,7 @@ export async function listOccurrenceNotificationCandidates(
       task: {
         select: {
           id: true,
+          clientId: true,
           title: true,
           scheduledTime: true,
           notificationRepeatMinutes: true,
@@ -155,6 +158,7 @@ export async function dispatchOccurrenceNotification(
         task: {
           select: {
             id: true,
+            clientId: true,
             title: true,
             scheduledTime: true,
             notificationRepeatMinutes: true,
@@ -217,6 +221,7 @@ export async function dispatchOccurrenceNotification(
         task: {
           select: {
             id: true,
+            clientId: true,
             title: true,
             scheduledTime: true,
             notificationRepeatMinutes: true,

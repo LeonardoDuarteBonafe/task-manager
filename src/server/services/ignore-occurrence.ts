@@ -25,6 +25,18 @@ export async function ignoreOccurrence(input: IgnoreOccurrenceInput): Promise<Ta
       throw new DomainError("Occurrence not found.");
     }
 
+    if (occurrence.status === "IGNORED") {
+      const alreadyIgnored = await tx.taskOccurrence.findUnique({
+        where: { id: occurrence.id },
+      });
+
+      if (!alreadyIgnored) {
+        throw new DomainError("Occurrence not found.");
+      }
+
+      return alreadyIgnored;
+    }
+
     if (occurrence.status !== "PENDING") {
       throw new DomainError("Only pending occurrences can be ignored.");
     }

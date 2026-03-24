@@ -35,12 +35,26 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
   const weekdays = normalizeRecurrenceWeekdays(input.recurrenceType, input.weekdays);
 
+  if (input.clientId) {
+    const existingTask = await prisma.task.findFirst({
+      where: {
+        userId: input.userId,
+        clientId: input.clientId,
+      },
+    });
+
+    if (existingTask) {
+      return existingTask;
+    }
+  }
+
   const task = await prisma.$transaction(async (tx) => {
     const taskCode = await getNextTaskCode(tx, input.userId);
 
     const createdTask = await tx.task.create({
       data: {
         userId: input.userId,
+        clientId: input.clientId ?? null,
         taskCode,
         title,
         notes: input.notes?.trim() || null,
@@ -61,10 +75,11 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       taskId: createdTask.id,
       userId: input.userId,
       action: "CREATED",
-      metadata: {
-        taskCode,
-        recurrenceType: input.recurrenceType,
-      },
+        metadata: {
+          clientId: input.clientId ?? null,
+          taskCode,
+          recurrenceType: input.recurrenceType,
+        },
     });
 
     return createdTask;

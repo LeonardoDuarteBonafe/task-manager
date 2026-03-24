@@ -8,6 +8,7 @@ type ListOccurrencesPaginatedResult = {
       task: {
         select: {
           id: true;
+          clientId: true;
           taskCode: true;
           title: true;
           notes: true;
@@ -15,6 +16,7 @@ type ListOccurrencesPaginatedResult = {
           scheduledTime: true;
           weekdays: true;
           timezone: true;
+          notificationRepeatMinutes: true;
           isFavorite: true;
           isEnded: true;
           status: true;
@@ -119,6 +121,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
         task: {
           select: {
             id: true,
+            clientId: true,
             taskCode: true,
             title: true,
             notes: true,
@@ -126,6 +129,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
             scheduledTime: true,
             weekdays: true,
             timezone: true,
+            notificationRepeatMinutes: true,
             isFavorite: true,
             isEnded: true,
             status: true,

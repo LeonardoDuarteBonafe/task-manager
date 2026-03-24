@@ -44,6 +44,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<Task> {
     const task = await tx.task.update({
       where: { id: input.taskId },
       data: {
+        clientId: input.clientId ?? current.clientId,
         title,
         notes: input.notes !== undefined ? input.notes?.trim() || null : current.notes,
         recurrenceType,
@@ -70,6 +71,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<Task> {
       userId: input.userId,
       action: "UPDATED",
       metadata: {
+        clientId: input.clientId ?? current.clientId,
         recurrenceType,
         scheduledTime,
         maxOccurrences,

@@ -8,6 +8,7 @@ export type TaskHistoryDto = {
 export type TaskDto = {
   id: string;
   userId: string;
+  clientId?: string | null;
   taskCode: number;
   title: string;
   notes: string | null;
@@ -45,6 +46,7 @@ export type OccurrenceDto = {
   }>;
   task: {
     id: string;
+    clientId?: string | null;
     taskCode: number;
     title: string;
     notes: string | null;
@@ -52,6 +54,7 @@ export type OccurrenceDto = {
     scheduledTime: string;
     weekdays: number[];
     timezone: string;
+    notificationRepeatMinutes: number;
     isFavorite: boolean;
     isEnded: boolean;
     status: "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED";

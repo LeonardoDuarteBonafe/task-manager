@@ -95,6 +95,24 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclose", () => undefined);
 
+self.addEventListener("sync", (event) => {
+  if (event.tag !== "taskmanager-offline-sync") {
+    return;
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) =>
+      Promise.all(
+        clients.map((client) =>
+          client.postMessage({
+            type: "taskmanager-sync-request",
+          }),
+        ),
+      ),
+    ),
+  );
+});
+
 async function handleOccurrenceNotificationAction(notification, action) {
   const occurrenceId = notification.data?.occurrenceId;
   const userId = notification.data?.userId;

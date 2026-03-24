@@ -12,6 +12,7 @@ const getQuerySchema = z.object({
 
 const updateTaskSchema = z.object({
   userId: z.string().min(1),
+  clientId: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
   notes: z.string().nullable().optional(),
   recurrenceType: z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY"]).optional(),
