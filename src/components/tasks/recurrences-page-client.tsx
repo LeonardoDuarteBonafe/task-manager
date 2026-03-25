@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { buildMockOccurrencePage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
 import { applyOccurrenceActionOffline, loadOccurrencePageFromCache, syncOccurrencePageFromServer } from "@/lib/offline/offline-store";
+import { readOfflineLastUser } from "@/lib/offline/user-session";
 import { OccurrenceDialog } from "./occurrence-dialog";
 import { OccurrenceItem } from "./occurrence-item";
 import type { OccurrenceDetailsDto, OccurrencePageDto } from "./types";
@@ -45,7 +46,8 @@ export function RecurrencesPageClient() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { status, data: session } = useSession();
-  const userId = session?.user?.id;
+  const [offlineUserId, setOfflineUserId] = useState<string | null>(null);
+  const userId = session?.user?.id ?? offlineUserId;
   const isMockMode = isForcedUser(session?.user);
   const occurrenceIdFromQuery = searchParams.get("occurrenceId");
 
@@ -56,6 +58,10 @@ export function RecurrencesPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [mockOccurrences, setMockOccurrences] = useState<OccurrenceDetailsDto[]>([]);
+
+  useEffect(() => {
+    setOfflineUserId(readOfflineLastUser()?.id ?? null);
+  }, []);
 
   const syncUrl = useCallback(
     (nextFilters: FilterState, nextOccurrenceId?: string | null) => {
@@ -154,12 +160,12 @@ export function RecurrencesPageClient() {
   }, []);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (status === "unauthenticated" && navigator.onLine) {
       router.replace("/login");
       return;
     }
 
-    if (status !== "authenticated" || !userId) return;
+    if (!userId) return;
 
     void loadData();
   }, [status, userId, router, loadData]);
@@ -244,6 +250,22 @@ export function RecurrencesPageClient() {
 
   const items = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
+
+  if (status === "loading") {
+    return (
+      <AppShell subtitle="Aguarde..." title="Recorrencias">
+        <PageState description="Carregando sessao..." title="Carregando" />
+      </AppShell>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <AppShell subtitle="Sem usuario local carregado." title="Recorrencias">
+        <PageState description="Abra esta tela online ao menos uma vez com sessao ativa para liberar o modo offline local." title="Sessao indisponivel" />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell subtitle="Filtre, abra detalhes em modal e acompanhe o historico de cada recorrencia." title="Recorrencias">

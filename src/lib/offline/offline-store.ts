@@ -706,7 +706,41 @@ async function cacheTaskSnapshot(userId: string, tasks: TaskDto[]) {
   }
 }
 
+async function seedTasksFromOccurrences(userId: string, occurrences: OccurrenceDetailsDto[]) {
+  const nestedTasks = occurrences.map((occurrence) => ({
+    id: occurrence.task.id,
+    clientId: occurrence.task.clientId ?? null,
+    userId,
+    taskCode: occurrence.task.taskCode,
+    title: occurrence.task.title,
+    notes: occurrence.task.notes,
+    recurrenceType: occurrence.task.recurrenceType,
+    weekdays: occurrence.task.weekdays,
+    scheduledTime: occurrence.task.scheduledTime,
+    timezone: occurrence.task.timezone,
+    startDate: occurrence.task.startDate ?? occurrence.scheduledAt,
+    endDate: occurrence.task.endDate ?? null,
+    notificationRepeatMinutes: occurrence.task.notificationRepeatMinutes,
+    maxOccurrences: null,
+    isFavorite: occurrence.task.isFavorite,
+    isEnded: occurrence.task.isEnded,
+    status: occurrence.task.status,
+    createdAt: occurrence.task.createdAt ?? occurrence.task.updatedAt,
+    updatedAt: occurrence.task.updatedAt,
+    endedAt: occurrence.task.endedAt,
+    canceledAt: occurrence.task.canceledAt,
+    abortedAt: occurrence.task.abortedAt,
+    history: [],
+  })) satisfies TaskDto[];
+
+  const uniqueTasks = Array.from(new Map(nestedTasks.map((task) => [task.id, task])).values());
+  if (uniqueTasks.length > 0) {
+    await cacheTaskSnapshot(userId, uniqueTasks);
+  }
+}
+
 async function cacheOccurrenceSnapshot(userId: string, occurrences: OccurrenceDetailsDto[]) {
+  await seedTasksFromOccurrences(userId, occurrences);
   const existingOccurrences = (await getAllOccurrences()).filter((occurrence) => occurrence.userId === userId);
   const remoteIds = new Set(occurrences.map((occurrence) => occurrence.id));
 

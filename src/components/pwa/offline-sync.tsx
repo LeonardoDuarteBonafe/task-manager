@@ -3,10 +3,26 @@
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { bootstrapOfflineData, hydrateOfflineRuntimeState, synchronizeOfflineData } from "@/lib/offline/offline-store";
+import { clearOfflineLastUser, saveOfflineLastUser } from "@/lib/offline/user-session";
 
 export function OfflineSync() {
   const { status, data: session } = useSession();
   const userId = session?.user?.id;
+
+  useEffect(() => {
+    if (status === "authenticated" && userId) {
+      saveOfflineLastUser({
+        id: userId,
+        email: session?.user?.email ?? null,
+        name: session?.user?.name ?? null,
+      });
+      return;
+    }
+
+    if (status === "unauthenticated" && navigator.onLine) {
+      clearOfflineLastUser();
+    }
+  }, [session?.user?.email, session?.user?.name, status, userId]);
 
   useEffect(() => {
     if (status !== "authenticated" || !userId) {

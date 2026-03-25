@@ -11,7 +11,8 @@ import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
-import { endTaskOffline, loadTaskPageFromCache, syncTaskPageFromServer, toggleTaskFavoriteOffline } from "@/lib/offline/offline-store";
+import { endTaskOffline, loadTaskPageFromCache, syncTaskPageFromServer, synchronizeOfflineData, toggleTaskFavoriteOffline } from "@/lib/offline/offline-store";
+import { readOfflineLastUser } from "@/lib/offline/user-session";
 import { TaskDialog } from "./task-dialog";
 import { type TaskFormValues } from "./task-form";
 import { TaskItem } from "./task-item";
@@ -54,7 +55,8 @@ export function TasksPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status, data: session } = useSession();
-  const userId = session?.user?.id;
+  const [offlineUserId, setOfflineUserId] = useState<string | null>(null);
+  const userId = session?.user?.id ?? offlineUserId;
   const isMockMode = isForcedUser(session?.user);
 
   const [viewState, setViewState] = useState(() => readFilters(new URLSearchParams(searchParams.toString())));
@@ -113,7 +115,17 @@ export function TasksPageClient() {
           taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
           name: nameFilter,
         });
-        setTasksData(refreshed);
+        if (refreshed.items.length === 0) {
+          await synchronizeOfflineData(userId, "foreground-sync");
+          const afterGlobalSync = await loadTaskPageFromCache(userId, page, {
+            status: statusFilter,
+            taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+            name: nameFilter,
+          });
+          setTasksData(afterGlobalSync);
+        } else {
+          setTasksData(refreshed);
+        }
       }
     } catch (requestError) {
       const cachedData = await loadTaskPageFromCache(userId, page, {
@@ -139,6 +151,10 @@ export function TasksPageClient() {
   }, [nameFilter, statusFilter, taskCodeFilter]);
 
   useEffect(() => {
+    setOfflineUserId(readOfflineLastUser()?.id ?? null);
+  }, []);
+
+  useEffect(() => {
     const handlePopState = () => {
       setViewState(readFilters(new URLSearchParams(window.location.search)));
     };
@@ -147,12 +163,12 @@ export function TasksPageClient() {
   }, []);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (status === "unauthenticated" && navigator.onLine) {
       router.replace("/login");
       return;
     }
 
-    if (status !== "authenticated" || !userId) return;
+    if (!userId) return;
 
     void loadTasks();
   }, [status, router, loadTasks, userId]);
@@ -315,6 +331,14 @@ export function TasksPageClient() {
     return (
       <AppShell subtitle="Aguarde..." title="Tarefas">
         <PageState description="Carregando sessao..." title="Carregando" />
+      </AppShell>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <AppShell subtitle="Sem usuario local carregado." title="Tarefas">
+        <PageState description="Abra esta tela online ao menos uma vez com sessao ativa para liberar o modo offline local." title="Sessao indisponivel" />
       </AppShell>
     );
   }
