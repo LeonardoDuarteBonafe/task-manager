@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/components/theme/theme-provider";
+import { OfflineStatus } from "@/components/pwa/offline-status";
 import { isForcedUser } from "@/lib/mock-mode";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
+import { OfflineRouteLink } from "./offline-route-link";
 import { UserAvatar } from "./user-avatar";
 
 type AppShellProps = {
@@ -48,9 +49,13 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
   const navigation = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 px-1">
-        <Link className="inline-flex items-center text-lg font-semibold text-slate-900 transition hover:text-slate-700 dark:text-slate-100 dark:hover:text-slate-300" href="/" onClick={() => setMobileMenuOpen(false)}>
+        <OfflineRouteLink
+          className="inline-flex items-center text-lg font-semibold text-slate-900 transition hover:text-slate-700 dark:text-slate-100 dark:hover:text-slate-300"
+          href="/"
+          onClick={() => setMobileMenuOpen(false)}
+        >
           Task Manager
-        </Link>
+        </OfflineRouteLink>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           {data?.user?.email ? `Conectado como ${data.user.email}` : "Gerencie suas rotinas recorrentes."}
         </p>
@@ -67,7 +72,7 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
             const active = pathname === link.href;
 
             return (
-              <Link
+              <OfflineRouteLink
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
@@ -79,7 +84,7 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
                 )}
               >
                 {link.label}
-              </Link>
+              </OfflineRouteLink>
             );
           })}
         </nav>
@@ -118,9 +123,9 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
               <Button className="px-3 md:hidden" onClick={() => setMobileMenuOpen(true)} type="button" variant="secondary">
                 Menu
               </Button>
-              <Link className="truncate text-lg font-semibold text-slate-900 transition hover:text-slate-700 dark:text-slate-100 dark:hover:text-slate-300" href="/">
+              <OfflineRouteLink className="truncate text-lg font-semibold text-slate-900 transition hover:text-slate-700 dark:text-slate-100 dark:hover:text-slate-300" href="/">
                 Task Manager
-              </Link>
+              </OfflineRouteLink>
             </div>
 
             <button
@@ -155,3 +160,6 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
     </main>
   );
 }
+        <div className="mt-4">
+          <OfflineStatus />
+        </div>

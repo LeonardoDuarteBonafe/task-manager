@@ -1,5 +1,9 @@
-const STATIC_CACHE = "taskmanager-static-v1";
-const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg"];
+const STATIC_CACHE = "taskmanager-static-v2";
+const ROUTE_CACHE = "taskmanager-routes-v2";
+const RUNTIME_CACHE = "taskmanager-runtime-v2";
+const OFFLINE_FALLBACK_ROUTE = "/offline";
+const OFFLINE_SUPPORTED_ROUTES = ["/", "/dashboard", "/tasks", "/recorrencias"];
+const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg", OFFLINE_FALLBACK_ROUTE];
 
 function createNotificationId(prefix = "desktop") {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -7,6 +11,24 @@ function createNotificationId(prefix = "desktop") {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isStaticAsset(pathname) {
+  return pathname.startsWith("/_next/static/") || pathname.startsWith("/icons/") || pathname === "/manifest.webmanifest";
+}
+
+function isOfflineSupportedPath(pathname) {
+  return OFFLINE_SUPPORTED_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+async function cacheSuccessfulResponse(cacheName, request, response) {
+  if (!response || !response.ok) {
+    return response;
+  }
+
+  const cache = await caches.open(cacheName);
+  await cache.put(request, response.clone());
+  return response;
 }
 
 self.addEventListener("install", (event) => {
@@ -21,7 +43,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== STATIC_CACHE)
+          .filter((key) => ![STATIC_CACHE, ROUTE_CACHE, RUNTIME_CACHE].includes(key))
           .map((key) => caches.delete(key)),
       ),
     ),
@@ -35,13 +57,44 @@ self.addEventListener("fetch", (event) => {
   }
 
   const requestUrl = new URL(event.request.url);
-  const isStaticAsset =
-    requestUrl.pathname.startsWith("/_next/static/") ||
-    requestUrl.pathname.startsWith("/icons/") ||
-    requestUrl.pathname === "/manifest.webmanifest";
 
-  if (!isStaticAsset) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          return cacheSuccessfulResponse(ROUTE_CACHE, requestUrl.pathname, response);
+        } catch {
+          const exactMatch = await caches.match(event.request, { ignoreSearch: true });
+          if (exactMatch) {
+            return exactMatch;
+          }
+
+          if (isOfflineSupportedPath(requestUrl.pathname)) {
+            const cachedRoute = await caches.match(requestUrl.pathname, { ignoreSearch: true });
+            if (cachedRoute) {
+              return cachedRoute;
+            }
+          }
+
+          return (await caches.match(OFFLINE_FALLBACK_ROUTE)) || Response.error();
+        }
+      })(),
+    );
+    return;
+  }
+
+  if (!isStaticAsset(requestUrl.pathname)) {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          return cacheSuccessfulResponse(RUNTIME_CACHE, event.request, response);
+        } catch {
+          return (await caches.match(event.request, { ignoreSearch: true })) || Response.error();
+        }
+      })(),
+    );
     return;
   }
 
@@ -52,15 +105,7 @@ self.addEventListener("fetch", (event) => {
       }
 
       return fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-
-          caches.open(STATIC_CACHE).then((cache) => {
-            cache.put(event.request, responseClone).catch(() => undefined);
-          });
-
-          return response;
-        })
+        .then((response) => cacheSuccessfulResponse(STATIC_CACHE, event.request, response))
         .catch(() => caches.match(event.request));
     }),
   );

@@ -9,16 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
-import { apiRequest } from "@/lib/http-client";
 import { buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
-import { flushOfflineQueue, loadTaskPageFromCache, syncTaskPageFromServer } from "@/lib/offline/offline-store";
+import { endTaskOffline, loadTaskPageFromCache, syncTaskPageFromServer, toggleTaskFavoriteOffline } from "@/lib/offline/offline-store";
 import { TaskDialog } from "./task-dialog";
 import { type TaskFormValues } from "./task-form";
 import { TaskItem } from "./task-item";
 import type { TaskPageDto } from "./types";
-
-const PAGE_SIZE = 10;
 
 type ModalState = {
   open: boolean;
@@ -44,6 +41,15 @@ function applyFavoriteToTaskPage(data: TaskPageDto | null, taskId: string, isFav
   };
 }
 
+function readFilters(searchParams: URLSearchParams) {
+  return {
+    page: Math.max(Number(searchParams.get("page") ?? "1"), 1),
+    status: searchParams.get("status") ?? "",
+    code: searchParams.get("code") ?? "",
+    name: searchParams.get("name") ?? "",
+  };
+}
+
 export function TasksPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,11 +57,8 @@ export function TasksPageClient() {
   const userId = session?.user?.id;
   const isMockMode = isForcedUser(session?.user);
 
-  const urlPage = Math.max(Number(searchParams.get("page") ?? "1"), 1);
-  const [offlinePage, setOfflinePage] = useState<number | null>(null);
-  const page = offlinePage ?? urlPage;
-  const statusFilter = searchParams.get("status") ?? "";
-  const taskCodeFilter = searchParams.get("code") ?? "";
+  const [viewState, setViewState] = useState(() => readFilters(new URLSearchParams(searchParams.toString())));
+  const { page, status: statusFilter, code: taskCodeFilter, name: nameFilter } = viewState;
 
   const [tasksData, setTasksData] = useState<TaskPageDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,8 +66,19 @@ export function TasksPageClient() {
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
   const [draftStatus, setDraftStatus] = useState(statusFilter);
   const [draftCode, setDraftCode] = useState(taskCodeFilter);
+  const [draftName, setDraftName] = useState(nameFilter);
   const [mockTasks, setMockTasks] = useState<TaskPageDto["items"]>([]);
   const [modalState, setModalState] = useState<ModalState>({ open: false, mode: "create", taskId: null });
+
+  const syncUrl = useCallback((nextPage: number, nextStatus: string, nextCode: string, nextName: string) => {
+    const query = new URLSearchParams();
+    query.set("page", String(nextPage));
+    if (nextStatus) query.set("status", nextStatus);
+    if (nextCode) query.set("code", nextCode);
+    if (nextName) query.set("name", nextName);
+    const nextUrl = query.toString() ? `/tasks?${query.toString()}` : "/tasks";
+    window.history.pushState(null, "", nextUrl);
+  }, []);
 
   const loadTasks = useCallback(async () => {
     if (!userId) return;
@@ -74,6 +88,7 @@ export function TasksPageClient() {
       const pageData = buildMockTaskPage(dataset.tasks, page, {
         status: statusFilter,
         taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+        name: nameFilter,
       });
       setMockTasks(dataset.tasks);
       setTasksData(pageData);
@@ -82,39 +97,29 @@ export function TasksPageClient() {
       return;
     }
 
-    const query = new URLSearchParams({
-      userId,
-      page: String(page),
-      pageSize: String(PAGE_SIZE),
-    });
-
-    if (taskCodeFilter) query.set("taskCode", taskCodeFilter);
-    if (statusFilter === "FAVORITES") query.set("favorite", "true");
-    else if (statusFilter) query.set("status", statusFilter);
-
     setLoading(true);
     setError(null);
     try {
-      if (!navigator.onLine) {
-        const cachedData = await loadTaskPageFromCache(userId, page, {
-          status: statusFilter,
-          taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
-        });
-        setTasksData(cachedData);
-        setError(null);
-        return;
-      }
-
-      await flushOfflineQueue();
-      const data = await syncTaskPageFromServer(userId, page, {
+      const cachedData = await loadTaskPageFromCache(userId, page, {
         status: statusFilter,
         taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+        name: nameFilter,
       });
-      setTasksData(data);
+      setTasksData(cachedData);
+
+      if (navigator.onLine) {
+        const refreshed = await syncTaskPageFromServer(userId, page, {
+          status: statusFilter,
+          taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+          name: nameFilter,
+        });
+        setTasksData(refreshed);
+      }
     } catch (requestError) {
       const cachedData = await loadTaskPageFromCache(userId, page, {
         status: statusFilter,
         taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined,
+        name: nameFilter,
       });
       setTasksData(cachedData);
       if (cachedData.items.length === 0) {
@@ -125,16 +130,21 @@ export function TasksPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [isMockMode, page, statusFilter, taskCodeFilter, userId]);
+  }, [isMockMode, nameFilter, page, statusFilter, taskCodeFilter, userId]);
 
   useEffect(() => {
     setDraftStatus(statusFilter);
     setDraftCode(taskCodeFilter);
-  }, [statusFilter, taskCodeFilter]);
+    setDraftName(nameFilter);
+  }, [nameFilter, statusFilter, taskCodeFilter]);
 
   useEffect(() => {
-    setOfflinePage(null);
-  }, [urlPage, statusFilter, taskCodeFilter]);
+    const handlePopState = () => {
+      setViewState(readFilters(new URLSearchParams(window.location.search)));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -146,6 +156,18 @@ export function TasksPageClient() {
 
     void loadTasks();
   }, [status, router, loadTasks, userId]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadTasks();
+    };
+    window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loadTasks]);
 
   function openModal(nextMode: "create" | "view" | "edit", nextTaskId?: string | null) {
     setModalState({
@@ -160,24 +182,16 @@ export function TasksPageClient() {
   }
 
   function applyFilter() {
-    if (!navigator.onLine) {
-      setOfflinePage(1);
-      return;
-    }
-
-    const query = new URLSearchParams({ page: "1" });
-    if (draftStatus) query.set("status", draftStatus);
-    if (draftCode) query.set("code", draftCode);
-    router.push(`/tasks?${query.toString()}`);
+    setViewState({ page: 1, status: draftStatus, code: draftCode, name: draftName });
+    syncUrl(1, draftStatus, draftCode, draftName);
   }
 
   function goToPage(nextPage: number) {
-    if (!navigator.onLine) {
-      setOfflinePage(nextPage);
-      return;
-    }
-
-    router.push(`/tasks?${buildTasksPageQuery(searchParams, nextPage)}`);
+    setViewState((current) => {
+      const next = { ...current, page: nextPage };
+      syncUrl(next.page, next.status, next.code, next.name);
+      return next;
+    });
   }
 
   async function handleTaskLifecycle(taskIdValue: string, action: "end", reason?: string) {
@@ -194,7 +208,7 @@ export function TasksPageClient() {
               }
             : task,
         );
-        setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
+        setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined, name: nameFilter }));
         return nextTasks;
       });
       return;
@@ -202,10 +216,7 @@ export function TasksPageClient() {
     setLoadingTaskId(taskIdValue);
     setError(null);
     try {
-      await apiRequest(`/api/tasks/${taskIdValue}/${action}`, {
-        method: "POST",
-        body: JSON.stringify({ userId, reason }),
-      });
+      await endTaskOffline(taskIdValue, userId, reason);
       await loadTasks();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar tarefa.");
@@ -220,7 +231,7 @@ export function TasksPageClient() {
     if (isMockMode) {
       setMockTasks((current) => {
         const nextTasks = current.map((task) => (task.id === taskIdValue ? { ...task, isFavorite } : task));
-        setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
+        setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined, name: nameFilter }));
         return nextTasks;
       });
       return;
@@ -230,10 +241,7 @@ export function TasksPageClient() {
     const previousTasksData = tasksData;
     setTasksData((current) => applyFavoriteToTaskPage(current, taskIdValue, isFavorite, statusFilter));
     try {
-      await apiRequest(`/api/tasks/${taskIdValue}/favorite`, {
-        method: "POST",
-        body: JSON.stringify({ userId, isFavorite }),
-      });
+      await toggleTaskFavoriteOffline(taskIdValue, userId, isFavorite);
     } catch (requestError) {
       setTasksData(previousTasksData);
       setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar favorito.");
@@ -274,7 +282,7 @@ export function TasksPageClient() {
         },
         ...current,
       ];
-      setTasksData(buildMockTaskPage(nextTasks, 1, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
+      setTasksData(buildMockTaskPage(nextTasks, 1, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined, name: nameFilter }));
       return nextTasks;
     });
   }
@@ -298,7 +306,7 @@ export function TasksPageClient() {
             }
           : task,
       );
-      setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined }));
+      setTasksData(buildMockTaskPage(nextTasks, page, { status: statusFilter, taskCode: taskCodeFilter ? Number(taskCodeFilter) : undefined, name: nameFilter }));
       return nextTasks;
     });
   }
@@ -323,6 +331,10 @@ export function TasksPageClient() {
     >
       <Card className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="w-full max-w-sm">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
+            <Input onChange={(event) => setDraftName(event.target.value)} placeholder="Filtrar por nome" value={draftName} />
+          </div>
           <div className="w-full max-w-xs">
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
             <Select value={draftStatus} onChange={(event) => setDraftStatus(event.target.value)}>
@@ -349,14 +361,11 @@ export function TasksPageClient() {
             </Button>
             <Button
               onClick={() => {
-                if (!navigator.onLine) {
-                  setDraftStatus("");
-                  setDraftCode("");
-                  setOfflinePage(1);
-                  return;
-                }
-
-                router.push("/tasks");
+                setDraftStatus("");
+                setDraftCode("");
+                setDraftName("");
+                setViewState({ page: 1, status: "", code: "", name: "" });
+                syncUrl(1, "", "", "");
               }}
               type="button"
               variant="secondary"
@@ -375,7 +384,7 @@ export function TasksPageClient() {
             <TaskItem
               key={task.id}
               loadingTaskId={loadingTaskId}
-              isHighlighted={taskCodeFilter ? task.taskCode === Number(taskCodeFilter) : false}
+              isHighlighted={taskCodeFilter ? task.taskCode === Number(taskCodeFilter) : Boolean(nameFilter && task.title.toLocaleLowerCase().includes(nameFilter.toLocaleLowerCase()))}
               onEndTask={(id, reason) => handleTaskLifecycle(id, "end", reason)}
               onOpen={(id, mode = "view") => openModal(mode, id)}
               onToggleFavorite={handleToggleFavorite}
@@ -414,10 +423,4 @@ export function TasksPageClient() {
       />
     </AppShell>
   );
-}
-
-function buildTasksPageQuery(searchParams: URLSearchParams, page: number) {
-  const query = new URLSearchParams(searchParams.toString());
-  query.set("page", String(page));
-  return query.toString();
 }

@@ -20,6 +20,7 @@ const createTaskSchema = z.object({
 
 const getTasksQuerySchema = z.object({
   userId: z.string().min(1),
+  name: z.string().trim().min(1).optional(),
   taskCode: z.coerce.number().int().min(1).optional(),
   status: z.enum(["ACTIVE", "ENDED", "CANCELED", "ABORTED"]).optional(),
   favorite: z.coerce.boolean().optional(),
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const query = getTasksQuerySchema.parse({
       userId: url.searchParams.get("userId"),
+      name: url.searchParams.get("name") ?? undefined,
       taskCode: url.searchParams.get("taskCode") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
       favorite: url.searchParams.get("favorite") ?? undefined,

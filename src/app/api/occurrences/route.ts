@@ -4,6 +4,7 @@ import { handleApiError, ok } from "../_shared/http";
 
 const querySchema = z.object({
   userId: z.string().min(1),
+  name: z.string().trim().min(1).optional(),
   recurrenceCode: z.coerce.number().int().min(1).optional(),
   status: z.enum(["OVERDUE", "UPCOMING", "OPEN", "COMPLETED", "IGNORED", "CANCELED", "ABORTED", "FAVORITES"]).optional(),
   dateFrom: z.coerce.date().optional(),
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const query = querySchema.parse({
       userId: url.searchParams.get("userId"),
+      name: url.searchParams.get("name") ?? undefined,
       recurrenceCode: url.searchParams.get("recurrenceCode") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
       dateFrom: url.searchParams.get("dateFrom") ?? undefined,

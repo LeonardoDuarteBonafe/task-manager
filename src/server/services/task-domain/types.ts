@@ -60,6 +60,7 @@ export type RecurrenceFilterStatus =
 
 export type ListRecurrencesInput = {
   userId: string;
+  name?: string;
   recurrenceCode?: number;
   status?: RecurrenceFilterStatus;
   dateFrom?: Date;
@@ -72,6 +73,7 @@ export type ListRecurrencesInput = {
 
 export type ListTasksInput = {
   userId: string;
+  name?: string;
   taskCode?: number;
   status?: TaskStatus;
   favorite?: boolean;

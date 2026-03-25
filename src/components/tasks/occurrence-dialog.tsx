@@ -58,8 +58,13 @@ export function OccurrenceDialog({
       setError(null);
       setHistoryPage(1);
       try {
-        const data = await syncOccurrenceDetailsFromServer(occurrenceId, userId);
-        setOccurrence(data);
+        const cached = await getOccurrenceDetailsFromCache(occurrenceId);
+        setOccurrence(cached ?? initialOccurrence ?? null);
+
+        if (navigator.onLine) {
+          const data = await syncOccurrenceDetailsFromServer(occurrenceId, userId);
+          setOccurrence(data);
+        }
       } catch (requestError) {
         const cached = await getOccurrenceDetailsFromCache(occurrenceId);
         setOccurrence(cached ?? initialOccurrence ?? null);

@@ -11,19 +11,14 @@ import { PageState } from "@/components/ui/page-state";
 import { Select } from "@/components/ui/select";
 import { buildMockOccurrencePage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
-import {
-  applyOccurrenceActionOffline,
-  flushOfflineQueue,
-  loadOccurrencePageFromCache,
-  syncOccurrencePageFromServer,
-} from "@/lib/offline/offline-store";
+import { applyOccurrenceActionOffline, loadOccurrencePageFromCache, syncOccurrencePageFromServer } from "@/lib/offline/offline-store";
 import { OccurrenceDialog } from "./occurrence-dialog";
 import { OccurrenceItem } from "./occurrence-item";
 import type { OccurrenceDetailsDto, OccurrencePageDto } from "./types";
 
-const PAGE_SIZE = 10;
-
 type FilterState = {
+  page: number;
+  name: string;
   recurrenceCode: string;
   status: string;
   dateFrom: string;
@@ -31,6 +26,19 @@ type FilterState = {
   recurrenceType: string;
   sortOrder: "oldest" | "newest";
 };
+
+function readFilters(searchParams: URLSearchParams) {
+  return {
+    page: Math.max(Number(searchParams.get("page") ?? "1"), 1),
+    name: searchParams.get("name") ?? "",
+    recurrenceCode: searchParams.get("code") ?? "",
+    status: searchParams.get("status") ?? "",
+    dateFrom: searchParams.get("dateFrom") ?? "",
+    dateTo: searchParams.get("dateTo") ?? "",
+    recurrenceType: searchParams.get("recurrenceType") ?? "",
+    sortOrder: searchParams.get("sortOrder") === "newest" ? "newest" : "oldest",
+  } satisfies FilterState;
+}
 
 export function RecurrencesPageClient() {
   const router = useRouter();
@@ -41,23 +49,30 @@ export function RecurrencesPageClient() {
   const isMockMode = isForcedUser(session?.user);
   const occurrenceIdFromQuery = searchParams.get("occurrenceId");
 
-  const urlPage = Math.max(Number(searchParams.get("page") ?? "1"), 1);
-  const [offlinePage, setOfflinePage] = useState<number | null>(null);
-  const page = offlinePage ?? urlPage;
-  const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<FilterState>({
-    recurrenceCode: searchParams.get("code") ?? "",
-    status: searchParams.get("status") ?? "",
-    dateFrom: searchParams.get("dateFrom") ?? "",
-    dateTo: searchParams.get("dateTo") ?? "",
-    recurrenceType: searchParams.get("recurrenceType") ?? "",
-    sortOrder: searchParams.get("sortOrder") === "newest" ? "newest" : "oldest",
-  });
+  const [filters, setFilters] = useState<FilterState>(() => readFilters(new URLSearchParams(searchParams.toString())));
+  const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(occurrenceIdFromQuery);
   const [data, setData] = useState<OccurrencePageDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [mockOccurrences, setMockOccurrences] = useState<OccurrenceDetailsDto[]>([]);
+
+  const syncUrl = useCallback(
+    (nextFilters: FilterState, nextOccurrenceId?: string | null) => {
+      const query = new URLSearchParams();
+      query.set("page", String(nextFilters.page));
+      query.set("sortOrder", nextFilters.sortOrder);
+      if (nextOccurrenceId) query.set("occurrenceId", nextOccurrenceId);
+      if (nextFilters.name) query.set("name", nextFilters.name);
+      if (nextFilters.recurrenceCode) query.set("code", nextFilters.recurrenceCode);
+      if (nextFilters.status) query.set("status", nextFilters.status);
+      if (nextFilters.dateFrom) query.set("dateFrom", nextFilters.dateFrom);
+      if (nextFilters.dateTo) query.set("dateTo", nextFilters.dateTo);
+      if (nextFilters.recurrenceType) query.set("recurrenceType", nextFilters.recurrenceType);
+      window.history.pushState(null, "", `${pathname}?${query.toString()}`);
+    },
+    [pathname],
+  );
 
   const loadData = useCallback(async () => {
     if (!userId) return;
@@ -66,7 +81,8 @@ export function RecurrencesPageClient() {
       const dataset = createMockDataset();
       setMockOccurrences(dataset.occurrences);
       setData(
-        buildMockOccurrencePage(dataset.occurrences, page, {
+        buildMockOccurrencePage(dataset.occurrences, filters.page, {
+          name: filters.name,
           recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
           status: filters.status,
           dateFrom: filters.dateFrom,
@@ -80,38 +96,11 @@ export function RecurrencesPageClient() {
       return;
     }
 
-    const query = new URLSearchParams({
-      userId,
-      page: String(page),
-      pageSize: String(PAGE_SIZE),
-      sortOrder: filters.sortOrder,
-    });
-
-    if (filters.recurrenceCode) query.set("recurrenceCode", filters.recurrenceCode);
-    if (filters.status) query.set("status", filters.status);
-    if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
-    if (filters.dateTo) query.set("dateTo", filters.dateTo);
-    if (filters.recurrenceType) query.set("recurrenceType", filters.recurrenceType);
-
     setLoading(true);
     setError(null);
     try {
-      if (!navigator.onLine) {
-        const cachedData = await loadOccurrencePageFromCache(userId, page, {
-          recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
-          status: filters.status,
-          dateFrom: filters.dateFrom,
-          dateTo: filters.dateTo,
-          recurrenceType: filters.recurrenceType,
-          sortOrder: filters.sortOrder,
-        });
-        setData(cachedData);
-        setError(null);
-        return;
-      }
-
-      await flushOfflineQueue();
-      const payload = await syncOccurrencePageFromServer(userId, page, {
+      const cachedData = await loadOccurrencePageFromCache(userId, filters.page, {
+        name: filters.name,
         recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
         status: filters.status,
         dateFrom: filters.dateFrom,
@@ -119,9 +108,23 @@ export function RecurrencesPageClient() {
         recurrenceType: filters.recurrenceType,
         sortOrder: filters.sortOrder,
       });
-      setData(payload);
+      setData(cachedData);
+
+      if (navigator.onLine) {
+        const refreshed = await syncOccurrencePageFromServer(userId, filters.page, {
+          name: filters.name,
+          recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
+          status: filters.status,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          recurrenceType: filters.recurrenceType,
+          sortOrder: filters.sortOrder,
+        });
+        setData(refreshed);
+      }
     } catch (requestError) {
-      const cachedData = await loadOccurrencePageFromCache(userId, page, {
+      const cachedData = await loadOccurrencePageFromCache(userId, filters.page, {
+        name: filters.name,
         recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
         status: filters.status,
         dateFrom: filters.dateFrom,
@@ -138,26 +141,17 @@ export function RecurrencesPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [filters, isMockMode, page, userId]);
+  }, [filters, isMockMode, userId]);
 
   useEffect(() => {
-    setFilters({
-      recurrenceCode: searchParams.get("code") ?? "",
-      status: searchParams.get("status") ?? "",
-      dateFrom: searchParams.get("dateFrom") ?? "",
-      dateTo: searchParams.get("dateTo") ?? "",
-      recurrenceType: searchParams.get("recurrenceType") ?? "",
-      sortOrder: searchParams.get("sortOrder") === "newest" ? "newest" : "oldest",
-    });
-  }, [searchParams]);
-
-  useEffect(() => {
-    setOfflinePage(null);
-  }, [urlPage, searchParams]);
-
-  useEffect(() => {
-    setSelectedOccurrenceId(occurrenceIdFromQuery ?? null);
-  }, [occurrenceIdFromQuery]);
+    const handlePopState = () => {
+      const nextSearchParams = new URLSearchParams(window.location.search);
+      setFilters(readFilters(nextSearchParams));
+      setSelectedOccurrenceId(nextSearchParams.get("occurrenceId"));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -170,43 +164,35 @@ export function RecurrencesPageClient() {
     void loadData();
   }, [status, userId, router, loadData]);
 
-  function applyFilters() {
-    if (!navigator.onLine) {
-      setOfflinePage(1);
-      return;
-    }
+  useEffect(() => {
+    const refresh = () => {
+      void loadData();
+    };
+    window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loadData]);
 
-    const query = new URLSearchParams();
-    query.set("page", "1");
-    query.set("sortOrder", filters.sortOrder);
-    if (occurrenceIdFromQuery) query.set("occurrenceId", occurrenceIdFromQuery);
-    if (filters.recurrenceCode) query.set("code", filters.recurrenceCode);
-    if (filters.status) query.set("status", filters.status);
-    if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
-    if (filters.dateTo) query.set("dateTo", filters.dateTo);
-    if (filters.recurrenceType) query.set("recurrenceType", filters.recurrenceType);
-    router.push(`${pathname}?${query.toString()}`);
+  function applyFilters() {
+    const nextFilters = { ...filters, page: 1 };
+    setFilters(nextFilters);
+    syncUrl(nextFilters, selectedOccurrenceId);
   }
 
   function goToPage(nextPage: number) {
-    if (!navigator.onLine) {
-      setOfflinePage(nextPage);
-      return;
-    }
-
-    router.push(`/recorrencias?${buildPageQuery(searchParams, nextPage)}`);
+    setFilters((current) => {
+      const next = { ...current, page: nextPage };
+      syncUrl(next, selectedOccurrenceId);
+      return next;
+    });
   }
 
   function handleCloseOccurrenceDialog() {
     setSelectedOccurrenceId(null);
-
-    if (!occurrenceIdFromQuery) {
-      return;
-    }
-
-    const query = new URLSearchParams(searchParams.toString());
-    query.delete("occurrenceId");
-    router.replace(query.toString() ? `${pathname}?${query.toString()}` : pathname);
+    syncUrl(filters, null);
   }
 
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
@@ -230,8 +216,9 @@ export function RecurrencesPageClient() {
             : occurrence,
         );
         setData(
-          buildMockOccurrencePage(next, page, {
+          buildMockOccurrencePage(next, filters.page, {
             recurrenceCode: filters.recurrenceCode ? Number(filters.recurrenceCode) : undefined,
+            name: filters.name,
             status: filters.status,
             dateFrom: filters.dateFrom,
             dateTo: filters.dateTo,
@@ -262,6 +249,10 @@ export function RecurrencesPageClient() {
     <AppShell subtitle="Filtre, abra detalhes em modal e acompanhe o historico de cada recorrencia." title="Recorrencias">
       <Card className="space-y-4">
         <div className="grid gap-4 md:grid-cols-6">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
+            <Input onChange={(event) => setFilters((current) => ({ ...current, name: event.target.value }))} placeholder="Filtrar por nome" value={filters.name} />
+          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
             <Select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
@@ -317,20 +308,18 @@ export function RecurrencesPageClient() {
           </Button>
           <Button
             onClick={() => {
-              if (!navigator.onLine) {
-                setFilters({
-                  recurrenceCode: "",
-                  status: "",
-                  dateFrom: "",
-                  dateTo: "",
-                  recurrenceType: "",
-                  sortOrder: "oldest",
-                });
-                setOfflinePage(1);
-                return;
-              }
-
-              router.push("/recorrencias");
+              const nextFilters = {
+                page: 1,
+                name: "",
+                recurrenceCode: "",
+                status: "",
+                dateFrom: "",
+                dateTo: "",
+                recurrenceType: "",
+                sortOrder: "oldest",
+              } satisfies FilterState;
+              setFilters(nextFilters);
+              syncUrl(nextFilters, null);
             }}
             type="button"
             variant="secondary"
@@ -351,8 +340,11 @@ export function RecurrencesPageClient() {
               occurrence={occurrence}
               onComplete={(id) => handleOccurrenceAction(id, "complete")}
               onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
-              onOpen={setSelectedOccurrenceId}
-              onViewTask={(taskCode) => router.push(`/tasks?code=${taskCode}&page=1`)}
+              onOpen={(id) => {
+                setSelectedOccurrenceId(id);
+                syncUrl(filters, id);
+              }}
+              onViewTask={(taskCode) => window.location.assign(`/tasks?code=${taskCode}&page=1`)}
             />
           ))
         : null}
@@ -363,10 +355,10 @@ export function RecurrencesPageClient() {
             Pagina {data.page} de {data.totalPages} ({data.total} recorrencias)
           </p>
           <div className="flex gap-2">
-            <Button disabled={page <= 1} onClick={() => goToPage(Math.max(1, page - 1))} variant="secondary">
+            <Button disabled={filters.page <= 1} onClick={() => goToPage(Math.max(1, filters.page - 1))} variant="secondary">
               Anterior
             </Button>
-            <Button disabled={page >= totalPages} onClick={() => goToPage(Math.min(totalPages, page + 1))} variant="secondary">
+            <Button disabled={filters.page >= totalPages} onClick={() => goToPage(Math.min(totalPages, filters.page + 1))} variant="secondary">
               Proxima
             </Button>
           </div>
@@ -386,11 +378,4 @@ export function RecurrencesPageClient() {
       />
     </AppShell>
   );
-}
-
-function buildPageQuery(searchParams: URLSearchParams, page: number) {
-  const query = new URLSearchParams(searchParams.toString());
-  query.set("page", String(page));
-  if (!query.has("sortOrder")) query.set("sortOrder", "oldest");
-  return query.toString();
 }

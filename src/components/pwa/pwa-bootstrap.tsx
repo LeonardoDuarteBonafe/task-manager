@@ -1,6 +1,35 @@
 "use client";
 
 import { useEffect } from "react";
+import { OFFLINE_FALLBACK_ROUTE, OFFLINE_SUPPORTED_ROUTES } from "@/lib/offline/config";
+
+const ROUTE_CACHE = "taskmanager-routes-v2";
+
+async function warmOfflineRoutes() {
+  if (!("caches" in window) || !navigator.onLine) {
+    return;
+  }
+
+  const cache = await window.caches.open(ROUTE_CACHE);
+  const routes = [...OFFLINE_SUPPORTED_ROUTES, OFFLINE_FALLBACK_ROUTE];
+
+  await Promise.all(
+    routes.map(async (route) => {
+      try {
+        const response = await fetch(route, {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (response.ok) {
+          await cache.put(route, response.clone());
+        }
+      } catch {
+        // Route warmup is best-effort.
+      }
+    }),
+  );
+}
 
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) {
@@ -21,6 +50,7 @@ async function registerServiceWorker() {
 
   try {
     await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await warmOfflineRoutes();
   } catch (error) {
     console.error("Falha ao registrar o service worker.", error);
   }

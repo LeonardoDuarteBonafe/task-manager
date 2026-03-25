@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { PageState } from "@/components/ui/page-state";
-import { apiRequest } from "@/lib/http-client";
-import { saveTaskOffline, updateTaskOffline } from "@/lib/offline/offline-store";
+import { getTaskDetailsFromCache, saveTaskOffline, synchronizeOfflineData, updateTaskOffline } from "@/lib/offline/offline-store";
 import type { TaskDto } from "./types";
 import { TaskForm, type TaskFormValues } from "./task-form";
 import { formatDateTime, recurrenceLabel, taskHistoryActionLabel, taskStatusWithDateLabel } from "./format";
@@ -57,8 +56,14 @@ export function TaskDialog({
       setLoading(true);
       setError(null);
       try {
-        const data = await apiRequest<TaskDto>(`/api/tasks/${taskId}?userId=${encodeURIComponent(userId)}`);
-        setTask(data);
+        const cachedTask = await getTaskDetailsFromCache(taskId);
+        setTask(cachedTask ?? initialTask ?? null);
+
+        if (navigator.onLine) {
+          await synchronizeOfflineData(userId, "foreground-sync");
+          const refreshed = await getTaskDetailsFromCache(taskId);
+          setTask(refreshed ?? cachedTask ?? initialTask ?? null);
+        }
       } catch (requestError) {
         setTask(initialTask ?? null);
         setError(requestError instanceof Error ? requestError.message : "Falha ao carregar tarefa.");

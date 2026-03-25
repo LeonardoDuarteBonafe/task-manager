@@ -154,9 +154,10 @@ export function createMockDataset() {
   return { tasks, occurrences };
 }
 
-export function buildMockTaskPage(tasks: TaskDto[], page: number, filters?: string | { status?: string; taskCode?: number }): TaskPageDto {
+export function buildMockTaskPage(tasks: TaskDto[], page: number, filters?: string | { status?: string; taskCode?: number; name?: string }): TaskPageDto {
   const status = typeof filters === "string" ? filters : filters?.status;
   const taskCode = typeof filters === "string" ? undefined : filters?.taskCode;
+  const name = typeof filters === "string" ? undefined : filters?.name?.trim().toLocaleLowerCase();
 
   let filtered = status
     ? status === "FAVORITES"
@@ -168,6 +169,10 @@ export function buildMockTaskPage(tasks: TaskDto[], page: number, filters?: stri
     filtered = filtered.filter((task) => task.taskCode === taskCode);
   }
 
+  if (name) {
+    filtered = filtered.filter((task) => task.title.toLocaleLowerCase().includes(name));
+  }
+
   return paginate(filtered, page, 10);
 }
 
@@ -175,6 +180,7 @@ export function buildMockOccurrencePage(
   occurrences: OccurrenceDetailsDto[],
   page: number,
   filters: {
+    name?: string;
     status?: string;
     dateFrom?: string;
     dateTo?: string;
@@ -185,6 +191,11 @@ export function buildMockOccurrencePage(
 ): OccurrencePageDto {
   const now = Date.now();
   let filtered = [...occurrences];
+  const name = filters.name?.trim().toLocaleLowerCase();
+
+  if (name) {
+    filtered = filtered.filter((occurrence) => occurrence.task.title.toLocaleLowerCase().includes(name));
+  }
 
   if (filters.status) {
     filtered = filtered.filter((occurrence) => {

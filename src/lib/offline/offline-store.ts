@@ -3,20 +3,26 @@
 import type { TaskFormValues } from "@/components/tasks/task-form";
 import type { OccurrenceDetailsDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/components/tasks/types";
 import { buildMockOccurrencePage, buildMockTaskPage } from "@/lib/mocks/task-data";
+import { OFFLINE_DB_NAME, OFFLINE_DB_VERSION, OFFLINE_OCCURRENCE_HORIZON_DAYS, OFFLINE_SYNC_TAG } from "./config";
+import { createDefaultOfflineRuntimeState, OFFLINE_RUNTIME_EVENT, type OfflineRuntimeState, type OfflineSyncPhase } from "./events";
 
-const DB_NAME = "taskmanager-offline";
-const DB_VERSION = 1;
 const TASK_STORE = "tasks";
 const OCCURRENCE_STORE = "occurrences";
 const QUEUE_STORE = "queue";
+const METADATA_STORE = "metadata";
 
-type QueueOperationType = "createTask" | "updateTask" | "completeOccurrence" | "ignoreOccurrence";
+const TASK_FETCH_PAGE_SIZE = 100;
+const OCCURRENCE_FETCH_PAGE_SIZE = 100;
+
+type QueueOperationType = "createTask" | "updateTask" | "endTask" | "toggleFavorite" | "completeOccurrence" | "ignoreOccurrence";
+type SyncStatus = "synced" | "pending" | "syncing" | "failed";
+type QueueStatus = "pending" | "syncing" | "synced" | "failed";
 
 type CachedTask = TaskDto & {
   clientId: string;
   remoteId: string | null;
   localOnly: boolean;
-  syncStatus: "synced" | "pending" | "error";
+  syncStatus: SyncStatus;
 };
 
 type CachedOccurrence = OccurrenceDetailsDto & {
@@ -24,7 +30,7 @@ type CachedOccurrence = OccurrenceDetailsDto & {
   taskClientId: string;
   taskRemoteId: string | null;
   localOnly: boolean;
-  syncStatus: "synced" | "pending" | "error";
+  syncStatus: SyncStatus;
   lastNotificationAt: string | null;
 };
 
@@ -34,10 +40,20 @@ type QueueItem = {
   type: QueueOperationType;
   entityId: string;
   createdAt: string;
+  updatedAt: string;
+  status: QueueStatus;
+  attempts: number;
+  lastError: string | null;
   payload: Record<string, unknown>;
 };
 
+type MetadataRecord = {
+  key: string;
+  value: unknown;
+};
+
 type OccurrenceFilters = {
+  name?: string;
   recurrenceCode?: number;
   status?: string;
   dateFrom?: string;
@@ -45,6 +61,9 @@ type OccurrenceFilters = {
   recurrenceType?: string;
   sortOrder?: "oldest" | "newest";
 };
+
+const runtimeState: OfflineRuntimeState = createDefaultOfflineRuntimeState();
+let activeSyncPromise: Promise<void> | null = null;
 
 function isIndexedDbSupported() {
   return typeof window !== "undefined" && "indexedDB" in window;
@@ -58,13 +77,28 @@ function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function emitRuntimeState() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(OFFLINE_RUNTIME_EVENT));
+  }
+}
+
+function setRuntimeState(next: Partial<OfflineRuntimeState>) {
+  Object.assign(runtimeState, next);
+  emitRuntimeState();
+}
+
+export function getOfflineRuntimeSnapshot() {
+  return { ...runtimeState };
+}
+
 function openDatabase() {
   if (!isIndexedDbSupported()) {
     throw new Error("IndexedDB is not supported in this browser.");
   }
 
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+    const request = window.indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
 
     request.onupgradeneeded = () => {
       const database = request.result;
@@ -79,6 +113,10 @@ function openDatabase() {
 
       if (!database.objectStoreNames.contains(QUEUE_STORE)) {
         database.createObjectStore(QUEUE_STORE, { keyPath: "id" });
+      }
+
+      if (!database.objectStoreNames.contains(METADATA_STORE)) {
+        database.createObjectStore(METADATA_STORE, { keyPath: "key" });
       }
     };
 
@@ -116,17 +154,15 @@ async function withStore<T>(storeName: string, mode: IDBTransactionMode, callbac
           try {
             transaction.abort();
           } catch {
-            // Ignore abort failures after transaction is already finishing.
+            // Ignore abort failures when the transaction is already closing.
           }
         });
 
       transaction.oncomplete = () => {
-        if (settled) {
-          return;
+        if (!settled) {
+          settled = true;
+          resolve(callbackResult);
         }
-
-        settled = true;
-        resolve(callbackResult);
       };
       transaction.onerror = () => rejectOnce(transaction.error ?? new Error(`IndexedDB transaction failed for ${storeName}.`));
       transaction.onabort = () => rejectOnce(transaction.error ?? new Error(`IndexedDB transaction aborted for ${storeName}.`));
@@ -148,22 +184,34 @@ async function getAllFromStore<T>(storeName: string) {
 }
 
 async function getFromStore<T>(storeName: string, id: string) {
-  return withStore<T | undefined>(storeName, "readonly", async (store) => {
-    const result = await requestToPromise(store.get(id) as IDBRequest<T | undefined>);
-    return result;
-  });
+  return withStore<T | undefined>(storeName, "readonly", (store) => requestToPromise(store.get(id) as IDBRequest<T | undefined>));
 }
 
 async function putIntoStore<T>(storeName: string, value: T) {
-  return withStore<void>(storeName, "readwrite", async (store) => {
+  await withStore<void>(storeName, "readwrite", async (store) => {
     await requestToPromise(store.put(value));
   });
 }
 
 async function deleteFromStore(storeName: string, id: string) {
-  return withStore<void>(storeName, "readwrite", async (store) => {
+  await withStore<void>(storeName, "readwrite", async (store) => {
     await requestToPromise(store.delete(id));
   });
+}
+
+async function clearStore(storeName: string) {
+  await withStore<void>(storeName, "readwrite", async (store) => {
+    await requestToPromise(store.clear());
+  });
+}
+
+async function getMetadata<T>(key: string) {
+  const record = await getFromStore<MetadataRecord>(METADATA_STORE, key);
+  return (record?.value as T | undefined) ?? undefined;
+}
+
+async function setMetadata(key: string, value: unknown) {
+  await putIntoStore<MetadataRecord>(METADATA_STORE, { key, value });
 }
 
 async function fetchApi<T>(input: string, init?: RequestInit): Promise<T> {
@@ -231,8 +279,8 @@ function toOccurrenceDetailsDto(occurrence: CachedOccurrence): OccurrenceDetails
   };
 }
 
-function matchesTask(existing: CachedTask, task: TaskDto) {
-  return existing.id === task.id || existing.remoteId === task.id || existing.clientId === (task.clientId ?? task.id);
+function matchesTask(candidate: CachedTask, taskId: string, clientId?: string | null) {
+  return candidate.id === taskId || candidate.remoteId === taskId || (clientId ? candidate.clientId === clientId : false);
 }
 
 function localOccurrenceId(taskClientId: string, scheduledAt: string) {
@@ -337,7 +385,7 @@ function buildGeneratedOccurrence(task: CachedTask, scheduledAt: Date, recurrenc
   };
 }
 
-function generateOccurrencesForTask(task: CachedTask, horizonDays = 30) {
+function generateOccurrencesForTask(task: CachedTask, horizonDays = OFFLINE_OCCURRENCE_HORIZON_DAYS) {
   const startDate = new Date(task.startDate);
   const endDate = task.endDate ? new Date(task.endDate) : null;
   const limitDate = addDays(new Date(), horizonDays);
@@ -391,42 +439,116 @@ async function getAllQueueItems() {
   return items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
-async function enqueue(item: QueueItem) {
-  await putIntoStore(QUEUE_STORE, item);
-  await requestBackgroundSync();
+async function refreshRuntimeStateFromStorage() {
+  const queue = await getAllQueueItems();
+  const lastSyncAt = (await getMetadata<string>("lastSyncAt")) ?? null;
+  const lastSyncError = (await getMetadata<string>("lastSyncError")) ?? null;
+
+  setRuntimeState({
+    connectivity: navigator.onLine ? "online" : "offline",
+    pendingCount: queue.filter((item) => item.status === "pending" || item.status === "syncing").length,
+    failedCount: queue.filter((item) => item.status === "failed").length,
+    lastSyncAt,
+    lastSyncError,
+    syncPhase: runtimeState.syncPhase === "error" && !lastSyncError ? "idle" : runtimeState.syncPhase,
+  });
+
+  return getOfflineRuntimeSnapshot();
+}
+
+async function findTaskByAnyId(taskId: string) {
+  const direct = await getFromStore<CachedTask>(TASK_STORE, taskId);
+  if (direct) {
+    return direct;
+  }
+
+  const tasks = await getAllTasks();
+  return tasks.find((task) => task.remoteId === taskId || task.clientId === taskId) ?? null;
+}
+
+async function findOccurrenceByAnyId(occurrenceId: string) {
+  const direct = await getFromStore<CachedOccurrence>(OCCURRENCE_STORE, occurrenceId);
+  if (direct) {
+    return direct;
+  }
+
+  const occurrences = await getAllOccurrences();
+  return occurrences.find((occurrence) => occurrence.remoteId === occurrenceId) ?? null;
+}
+
+async function updateTaskSnapshotAcrossOccurrences(task: CachedTask) {
+  const occurrences = await getAllOccurrences();
+  const related = occurrences.filter((occurrence) => occurrence.taskClientId === task.clientId || occurrence.taskRemoteId === task.remoteId);
+
+  await Promise.all(
+    related.map((occurrence) =>
+      putIntoStore(OCCURRENCE_STORE, {
+        ...occurrence,
+        taskId: task.id,
+        taskRemoteId: task.remoteId,
+        taskClientId: task.clientId,
+        task: {
+          ...occurrence.task,
+          ...toTaskDto(task),
+          id: task.remoteId ?? task.id,
+        },
+      }),
+    ),
+  );
 }
 
 async function replaceTaskOccurrences(task: CachedTask) {
   const allOccurrences = await getAllOccurrences();
   const related = allOccurrences.filter((occurrence) => occurrence.taskClientId === task.clientId);
-  const relatedByScheduledAt = new Map(related.map((occurrence) => [occurrence.scheduledAt, occurrence]));
   const generated = generateOccurrencesForTask(task);
+  const generatedBySchedule = new Map(generated.map((occurrence) => [occurrence.scheduledAt, occurrence]));
 
-  await Promise.all(related.map((occurrence) => deleteFromStore(OCCURRENCE_STORE, occurrence.id)));
+  for (const occurrence of related) {
+    const nextGenerated = generatedBySchedule.get(occurrence.scheduledAt);
 
-  await Promise.all(
-    generated.map((occurrence) => {
-      const existing = relatedByScheduledAt.get(occurrence.scheduledAt);
-
-      if (!existing) {
-        return putIntoStore(OCCURRENCE_STORE, occurrence);
+    if (!nextGenerated) {
+      if (occurrence.status === "PENDING" && occurrence.remoteId == null) {
+        await deleteFromStore(OCCURRENCE_STORE, occurrence.id);
       }
 
-      return putIntoStore(OCCURRENCE_STORE, {
-        ...occurrence,
-        id: existing.id,
-        remoteId: existing.remoteId,
-        localOnly: existing.localOnly,
-        syncStatus: existing.syncStatus,
-        isEnded: existing.isEnded,
-        status: existing.status,
-        treatedAt: existing.treatedAt ?? null,
-        completedAt: existing.completedAt ?? null,
-        ignoredAt: existing.ignoredAt ?? null,
-        notificationAttempts: existing.notificationAttempts ?? 0,
-        history: existing.history,
-        lastNotificationAt: existing.lastNotificationAt,
-      });
+      continue;
+    }
+
+    generatedBySchedule.delete(occurrence.scheduledAt);
+    await putIntoStore(OCCURRENCE_STORE, {
+      ...nextGenerated,
+      id: occurrence.id,
+      remoteId: occurrence.remoteId,
+      localOnly: occurrence.localOnly,
+      syncStatus: occurrence.syncStatus,
+      isEnded: occurrence.isEnded,
+      status: occurrence.status,
+      treatedAt: occurrence.treatedAt ?? null,
+      completedAt: occurrence.completedAt ?? null,
+      ignoredAt: occurrence.ignoredAt ?? null,
+      notificationAttempts: occurrence.notificationAttempts ?? 0,
+      history: occurrence.history,
+      lastNotificationAt: occurrence.lastNotificationAt,
+    });
+  }
+
+  await Promise.all(Array.from(generatedBySchedule.values()).map((occurrence) => putIntoStore(OCCURRENCE_STORE, occurrence)));
+}
+
+async function pruneFutureOccurrencesForEndedTask(task: CachedTask, actedAt: string) {
+  const cutoff = new Date(actedAt).getTime();
+  const allOccurrences = await getAllOccurrences();
+  const related = allOccurrences.filter((occurrence) => occurrence.taskClientId === task.clientId);
+
+  await Promise.all(
+    related.map(async (occurrence) => {
+      if (new Date(occurrence.scheduledAt).getTime() <= cutoff) {
+        return;
+      }
+
+      if (occurrence.status === "PENDING") {
+        await deleteFromStore(OCCURRENCE_STORE, occurrence.id);
+      }
     }),
   );
 }
@@ -436,61 +558,458 @@ async function nextLocalTaskCode(userId: string) {
   return tasks.filter((task) => task.userId === userId).reduce((maxCode, task) => Math.max(maxCode, task.taskCode), 0) + 1;
 }
 
-export async function cacheTaskPage(userId: string, page: TaskPageDto) {
-  const existingTasks = await getAllTasks();
-  const incomingIds = new Set(page.items.map((task) => task.id));
+async function upsertQueueItem(item: QueueItem) {
+  await putIntoStore(QUEUE_STORE, item);
+  await refreshRuntimeStateFromStorage();
+  await requestBackgroundSync();
+}
 
-  for (const task of page.items) {
+async function enqueue(item: Omit<QueueItem, "id" | "status" | "attempts" | "lastError" | "updatedAt">) {
+  const queue = await getAllQueueItems();
+  const existing = queue.find((candidate) => candidate.entityId === item.entityId && candidate.type === item.type && candidate.status !== "synced");
+
+  if (existing) {
+    await upsertQueueItem({
+      ...existing,
+      payload: item.payload,
+      updatedAt: new Date().toISOString(),
+      createdAt: existing.createdAt,
+      status: "pending",
+      lastError: null,
+    });
+    return existing.id;
+  }
+
+  if (item.type === "updateTask") {
+    const pendingCreate = queue.find((candidate) => candidate.entityId === item.entityId && candidate.type === "createTask" && candidate.status !== "synced");
+    if (pendingCreate) {
+      await upsertQueueItem({
+        ...pendingCreate,
+        payload: {
+          ...pendingCreate.payload,
+          ...item.payload,
+        },
+        updatedAt: new Date().toISOString(),
+        status: "pending",
+        lastError: null,
+      });
+      return pendingCreate.id;
+    }
+  }
+
+  const queueItem: QueueItem = {
+    id: createId("queue"),
+    userId: item.userId,
+    type: item.type,
+    entityId: item.entityId,
+    createdAt: item.createdAt,
+    updatedAt: item.createdAt,
+    status: "pending",
+    attempts: 0,
+    lastError: null,
+    payload: item.payload,
+  };
+
+  await upsertQueueItem(queueItem);
+  return queueItem.id;
+}
+
+async function markQueueItem(queueItem: QueueItem, status: QueueStatus, lastError?: string | null) {
+  await upsertQueueItem({
+    ...queueItem,
+    status,
+    attempts: status === "syncing" ? queueItem.attempts + 1 : queueItem.attempts,
+    updatedAt: new Date().toISOString(),
+    lastError: lastError ?? null,
+  });
+}
+
+async function markMetadataSyncState(syncPhase: OfflineSyncPhase, lastSyncError?: string | null) {
+  await setMetadata("lastSyncError", lastSyncError ?? null);
+  setRuntimeState({
+    syncPhase,
+    lastSyncError: lastSyncError ?? null,
+    connectivity: navigator.onLine ? "online" : "offline",
+  });
+}
+
+async function fetchAllTasksFromServer(userId: string) {
+  let page = 1;
+  let totalPages = 1;
+  const items: TaskDto[] = [];
+
+  while (page <= totalPages) {
+    const payload = await fetchApi<TaskPageDto>(`/api/tasks?userId=${encodeURIComponent(userId)}&page=${page}&pageSize=${TASK_FETCH_PAGE_SIZE}`, {
+      method: "GET",
+    });
+    items.push(...payload.items);
+    totalPages = payload.totalPages;
+    page += 1;
+  }
+
+  return items;
+}
+
+async function fetchAllOccurrencesFromServer(userId: string) {
+  let page = 1;
+  let totalPages = 1;
+  const items: OccurrenceDetailsDto[] = [];
+
+  while (page <= totalPages) {
+    const payload = await fetchApi<OccurrencePageDto>(
+      `/api/occurrences?userId=${encodeURIComponent(userId)}&page=${page}&pageSize=${OCCURRENCE_FETCH_PAGE_SIZE}&sortOrder=oldest`,
+      { method: "GET" },
+    );
+    items.push(...(payload.items as OccurrenceDetailsDto[]));
+    totalPages = payload.totalPages;
+    page += 1;
+  }
+
+  return items;
+}
+
+async function cacheTaskSnapshot(userId: string, tasks: TaskDto[]) {
+  const existingTasks = (await getAllTasks()).filter((task) => task.userId === userId);
+  const remoteIds = new Set(tasks.map((task) => task.id));
+
+  for (const task of tasks) {
     const normalized = normalizeTask(task);
-    const existing = existingTasks.find((candidate) => matchesTask(candidate, task));
+    const existing = existingTasks.find((candidate) => matchesTask(candidate, task.id, task.clientId));
+    const hasLocalPending = existing && existing.syncStatus !== "synced";
 
-    if (existing && existing.id !== normalized.id) {
+    const nextTask: CachedTask = hasLocalPending
+      ? {
+          ...normalized,
+          ...existing,
+          id: existing.id,
+          remoteId: normalized.remoteId,
+          clientId: existing.clientId,
+          localOnly: false,
+        }
+      : normalized;
+
+    if (existing && existing.id !== nextTask.id) {
       await deleteFromStore(TASK_STORE, existing.id);
     }
 
-    await putIntoStore(TASK_STORE, {
-      ...(existing ?? normalized),
-      ...normalized,
-      localOnly: false,
-      syncStatus: "synced",
-    });
+    await putIntoStore(TASK_STORE, nextTask);
   }
 
-  const localOnlyTasks = existingTasks.filter((task) => task.userId === userId && task.localOnly);
-  for (const task of localOnlyTasks) {
-    if (!incomingIds.has(task.id)) {
-      await putIntoStore(TASK_STORE, task);
+  for (const task of existingTasks) {
+    if (task.localOnly || task.syncStatus !== "synced") {
+      continue;
+    }
+
+    if (task.remoteId && !remoteIds.has(task.remoteId)) {
+      await deleteFromStore(TASK_STORE, task.id);
     }
   }
 }
 
-export async function cacheOccurrencePage(page: OccurrencePageDto) {
-  const existingOccurrences = await getAllOccurrences();
+async function cacheOccurrenceSnapshot(userId: string, occurrences: OccurrenceDetailsDto[]) {
+  const existingOccurrences = (await getAllOccurrences()).filter((occurrence) => occurrence.userId === userId);
+  const remoteIds = new Set(occurrences.map((occurrence) => occurrence.id));
 
-  for (const occurrence of page.items) {
-    const normalized = normalizeOccurrence(occurrence as OccurrenceDetailsDto);
+  for (const occurrence of occurrences) {
+    const normalized = normalizeOccurrence(occurrence);
     const existing = existingOccurrences.find(
       (candidate) =>
         candidate.id === occurrence.id ||
         candidate.remoteId === occurrence.id ||
         (candidate.taskClientId === normalized.taskClientId && candidate.scheduledAt === normalized.scheduledAt),
     );
+    const hasLocalPending = existing && existing.syncStatus !== "synced";
 
-    if (existing && existing.id !== normalized.id) {
+    const nextOccurrence: CachedOccurrence = hasLocalPending
+      ? {
+          ...normalized,
+          ...existing,
+          id: existing.id,
+          remoteId: normalized.remoteId,
+          taskId: normalized.taskId,
+          taskRemoteId: normalized.taskRemoteId,
+          taskClientId: normalized.taskClientId,
+          localOnly: false,
+        }
+      : {
+          ...normalized,
+          lastNotificationAt: existing?.lastNotificationAt ?? null,
+        };
+
+    if (existing && existing.id !== nextOccurrence.id) {
       await deleteFromStore(OCCURRENCE_STORE, existing.id);
     }
 
-    await putIntoStore(OCCURRENCE_STORE, {
-      ...(existing ?? normalized),
-      ...normalized,
-      localOnly: false,
-      syncStatus: "synced",
-      lastNotificationAt: existing?.lastNotificationAt ?? null,
-    });
+    await putIntoStore(OCCURRENCE_STORE, nextOccurrence);
+  }
+
+  for (const occurrence of existingOccurrences) {
+    if (occurrence.localOnly || occurrence.syncStatus !== "synced") {
+      continue;
+    }
+
+    if (occurrence.remoteId && !remoteIds.has(occurrence.remoteId)) {
+      await deleteFromStore(OCCURRENCE_STORE, occurrence.id);
+    }
   }
 }
 
-export async function loadTaskPageFromCache(userId: string, page: number, filters?: { status?: string; taskCode?: number }) {
+async function refreshRemoteSnapshot(userId: string) {
+  const [tasksResult, occurrencesResult] = await Promise.allSettled([fetchAllTasksFromServer(userId), fetchAllOccurrencesFromServer(userId)]);
+
+  if (tasksResult.status === "fulfilled") {
+    await cacheTaskSnapshot(userId, tasksResult.value);
+  }
+
+  if (occurrencesResult.status === "fulfilled") {
+    await cacheOccurrenceSnapshot(userId, occurrencesResult.value);
+  }
+
+  if (tasksResult.status === "rejected" && occurrencesResult.status === "rejected") {
+    throw tasksResult.reason instanceof Error ? tasksResult.reason : new Error("Falha ao atualizar snapshot remoto.");
+  }
+
+  const syncedAt = new Date().toISOString();
+  await setMetadata("lastSyncAt", syncedAt);
+  await setMetadata("lastSyncError", null);
+  setRuntimeState({ lastSyncAt: syncedAt, lastSyncError: null });
+}
+
+async function applyServerTaskToLocal(task: TaskDto) {
+  const normalized = normalizeTask(task);
+  const existingTasks = await getAllTasks();
+  const existing = existingTasks.find((candidate) => matchesTask(candidate, task.id, task.clientId));
+
+  if (existing && existing.id !== normalized.id) {
+    await deleteFromStore(TASK_STORE, existing.id);
+  }
+
+  const nextTask: CachedTask = {
+    ...(existing ?? normalized),
+    ...normalized,
+    id: normalized.id,
+    remoteId: normalized.remoteId,
+    clientId: normalized.clientId,
+    localOnly: false,
+    syncStatus: "synced",
+  };
+
+  await putIntoStore(TASK_STORE, nextTask);
+  await updateTaskSnapshotAcrossOccurrences(nextTask);
+  return nextTask;
+}
+
+async function resolveOccurrenceRemoteId(occurrence: CachedOccurrence) {
+  if (occurrence.remoteId) {
+    return occurrence.remoteId;
+  }
+
+  const task = await findTaskByAnyId(occurrence.taskId);
+  const taskRemoteId = task?.remoteId ?? occurrence.taskRemoteId;
+  if (!taskRemoteId) {
+    return null;
+  }
+
+  const reconciled = await fetchApi<OccurrenceDetailsDto>(
+    `/api/occurrences/reconcile?userId=${encodeURIComponent(occurrence.userId)}&taskId=${encodeURIComponent(taskRemoteId)}&scheduledAt=${encodeURIComponent(
+      occurrence.scheduledAt,
+    )}`,
+    { method: "GET" },
+  );
+
+  const normalized = normalizeOccurrence(reconciled);
+  await deleteFromStore(OCCURRENCE_STORE, occurrence.id);
+  await putIntoStore(OCCURRENCE_STORE, {
+    ...normalized,
+    lastNotificationAt: occurrence.lastNotificationAt,
+  });
+  return reconciled.id;
+}
+
+async function processQueueItem(queueItem: QueueItem) {
+  await markQueueItem(queueItem, "syncing");
+
+  if (queueItem.type === "createTask") {
+    const createdTask = await fetchApi<TaskDto>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(queueItem.payload),
+    });
+
+    const localTask = await findTaskByAnyId(queueItem.entityId);
+    const syncedTask = await applyServerTaskToLocal(createdTask);
+
+    if (localTask) {
+      await replaceTaskOccurrences({
+        ...localTask,
+        ...syncedTask,
+        id: syncedTask.id,
+        remoteId: syncedTask.remoteId,
+        localOnly: false,
+        syncStatus: "synced",
+      });
+    }
+
+    await markQueueItem(queueItem, "synced");
+    return true;
+  }
+
+  if (queueItem.type === "updateTask") {
+    const task = await findTaskByAnyId(queueItem.entityId);
+    if (!task?.remoteId) {
+      await markQueueItem(queueItem, "pending");
+      return false;
+    }
+
+    const updatedTask = await fetchApi<TaskDto>(`/api/tasks/${task.remoteId}`, {
+      method: "PUT",
+      body: JSON.stringify(queueItem.payload),
+    });
+    await applyServerTaskToLocal(updatedTask);
+    await markQueueItem(queueItem, "synced");
+    return true;
+  }
+
+  if (queueItem.type === "endTask") {
+    const task = await findTaskByAnyId(queueItem.entityId);
+    if (!task?.remoteId) {
+      await markQueueItem(queueItem, "pending");
+      return false;
+    }
+
+    await fetchApi(`/api/tasks/${task.remoteId}/end`, {
+      method: "POST",
+      body: JSON.stringify(queueItem.payload),
+    });
+    await markQueueItem(queueItem, "synced");
+    return true;
+  }
+
+  if (queueItem.type === "toggleFavorite") {
+    const task = await findTaskByAnyId(queueItem.entityId);
+    if (!task?.remoteId) {
+      await markQueueItem(queueItem, "pending");
+      return false;
+    }
+
+    const updatedTask = await fetchApi<TaskDto>(`/api/tasks/${task.remoteId}/favorite`, {
+      method: "POST",
+      body: JSON.stringify(queueItem.payload),
+    });
+    await applyServerTaskToLocal(updatedTask);
+    await markQueueItem(queueItem, "synced");
+    return true;
+  }
+
+  if (queueItem.type === "completeOccurrence" || queueItem.type === "ignoreOccurrence") {
+    const occurrence = await findOccurrenceByAnyId(queueItem.entityId);
+    if (!occurrence) {
+      await markQueueItem(queueItem, "synced");
+      return false;
+    }
+
+    const remoteId = await resolveOccurrenceRemoteId(occurrence);
+    if (!remoteId) {
+      await markQueueItem(queueItem, "pending");
+      return false;
+    }
+
+    const action = queueItem.type === "completeOccurrence" ? "complete" : "ignore";
+    const updatedOccurrence = await fetchApi<OccurrenceDetailsDto>(`/api/occurrences/${remoteId}/${action}`, {
+      method: "POST",
+      body: JSON.stringify({
+        userId: queueItem.userId,
+        [action === "complete" ? "completedAt" : "ignoredAt"]: queueItem.payload.occurredAt,
+      }),
+    });
+
+    await putIntoStore(OCCURRENCE_STORE, {
+      ...normalizeOccurrence(updatedOccurrence),
+      lastNotificationAt: occurrence.lastNotificationAt,
+    });
+    await markQueueItem(queueItem, "synced");
+    return true;
+  }
+
+  return false;
+}
+
+export async function flushOfflineQueue(userId?: string) {
+  if (!navigator.onLine) {
+    await refreshRuntimeStateFromStorage();
+    return;
+  }
+
+  const queue = await getAllQueueItems();
+  let syncedAnyItem = false;
+
+  for (const queueItem of queue.filter((item) => item.status === "pending" || item.status === "failed")) {
+    try {
+      const changed = await processQueueItem(queueItem);
+      syncedAnyItem = syncedAnyItem || changed;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao sincronizar alteracao offline.";
+      await markQueueItem(queueItem, "failed", message);
+
+      if (!navigator.onLine) {
+        break;
+      }
+    }
+  }
+
+  if (syncedAnyItem && userId) {
+    await refreshRemoteSnapshot(userId);
+  }
+
+  await refreshRuntimeStateFromStorage();
+}
+
+export async function synchronizeOfflineData(userId: string, reason: "bootstrap" | "foreground-sync" = "foreground-sync") {
+  if (!navigator.onLine) {
+    setRuntimeState({ connectivity: "offline", syncPhase: "idle" });
+    await refreshRuntimeStateFromStorage();
+    return;
+  }
+
+  if (activeSyncPromise) {
+    return activeSyncPromise;
+  }
+
+  activeSyncPromise = (async () => {
+    await markMetadataSyncState(reason === "bootstrap" ? "bootstrapping" : "syncing");
+
+    try {
+      await flushOfflineQueue(userId);
+      await refreshRemoteSnapshot(userId);
+      await markMetadataSyncState("idle", null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao sincronizar dados offline.";
+      await markMetadataSyncState("error", message);
+    } finally {
+      await refreshRuntimeStateFromStorage();
+      activeSyncPromise = null;
+    }
+  })();
+
+  return activeSyncPromise;
+}
+
+export async function bootstrapOfflineData(userId: string) {
+  await synchronizeOfflineData(userId, "bootstrap");
+}
+
+export async function cacheTaskPage(userId: string, page: TaskPageDto) {
+  await cacheTaskSnapshot(userId, page.items);
+  await refreshRuntimeStateFromStorage();
+}
+
+export async function cacheOccurrencePage(page: OccurrencePageDto) {
+  if (page.items.length > 0) {
+    await cacheOccurrenceSnapshot(page.items[0].userId, page.items as OccurrenceDetailsDto[]);
+  }
+  await refreshRuntimeStateFromStorage();
+}
+
+export async function loadTaskPageFromCache(userId: string, page: number, filters?: { status?: string; taskCode?: number; name?: string }) {
   const tasks = await getAllTasks();
   const sortedTasks = tasks
     .filter((task) => task.userId === userId)
@@ -518,8 +1037,13 @@ export async function loadOccurrencePageFromCache(userId: string, page: number, 
   );
 }
 
+export async function getTaskDetailsFromCache(taskId: string) {
+  const task = await findTaskByAnyId(taskId);
+  return task ? toTaskDto(task) : null;
+}
+
 export async function getOccurrenceDetailsFromCache(occurrenceId: string) {
-  const occurrence = await getFromStore<CachedOccurrence>(OCCURRENCE_STORE, occurrenceId);
+  const occurrence = await findOccurrenceByAnyId(occurrenceId);
   return occurrence ? toOccurrenceDetailsDto(occurrence) : null;
 }
 
@@ -531,7 +1055,6 @@ export async function saveTaskOffline(values: TaskFormValues, userId: string) {
   await putIntoStore(TASK_STORE, task);
   await replaceTaskOccurrences(task);
   await enqueue({
-    id: createId("queue"),
     userId,
     type: "createTask",
     entityId: clientId,
@@ -539,11 +1062,12 @@ export async function saveTaskOffline(values: TaskFormValues, userId: string) {
     payload: buildTaskPayload(values, userId, clientId),
   });
 
+  await refreshRuntimeStateFromStorage();
   return toTaskDto(task);
 }
 
 export async function updateTaskOffline(taskId: string, values: TaskFormValues, userId: string) {
-  const task = await getFromStore<CachedTask>(TASK_STORE, taskId);
+  const task = await findTaskByAnyId(taskId);
   if (!task) {
     throw new Error("Task not found in offline cache.");
   }
@@ -555,7 +1079,7 @@ export async function updateTaskOffline(taskId: string, values: TaskFormValues, 
     remoteId: task.remoteId,
     clientId: task.clientId,
     createdAt: task.createdAt,
-    history: task.history,
+    history: [{ id: createId("history"), action: "UPDATED", actedAt: new Date().toISOString() }, ...task.history],
     isFavorite: task.isFavorite,
     syncStatus: "pending",
     localOnly: task.remoteId === null,
@@ -563,8 +1087,8 @@ export async function updateTaskOffline(taskId: string, values: TaskFormValues, 
 
   await putIntoStore(TASK_STORE, updatedTask);
   await replaceTaskOccurrences(updatedTask);
+  await updateTaskSnapshotAcrossOccurrences(updatedTask);
   await enqueue({
-    id: createId("queue"),
     userId,
     type: "updateTask",
     entityId: task.clientId,
@@ -572,11 +1096,86 @@ export async function updateTaskOffline(taskId: string, values: TaskFormValues, 
     payload: buildTaskPayload(values, userId, task.clientId),
   });
 
+  await refreshRuntimeStateFromStorage();
+  return toTaskDto(updatedTask);
+}
+
+export async function endTaskOffline(taskId: string, userId: string, reason?: string) {
+  const task = await findTaskByAnyId(taskId);
+  if (!task) {
+    throw new Error("Task not found in offline cache.");
+  }
+
+  const actedAt = new Date().toISOString();
+  const endedTask: CachedTask = {
+    ...task,
+    isEnded: true,
+    status: "ENDED",
+    endedAt: actedAt,
+    updatedAt: actedAt,
+    syncStatus: "pending",
+    history: [
+      {
+        id: createId("history"),
+        action: "ENDED",
+        actedAt,
+        metadata: { reason: reason?.trim() || null },
+      },
+      ...task.history,
+    ],
+  };
+
+  await putIntoStore(TASK_STORE, endedTask);
+  await pruneFutureOccurrencesForEndedTask(endedTask, actedAt);
+  await updateTaskSnapshotAcrossOccurrences(endedTask);
+  await enqueue({
+    userId,
+    type: "endTask",
+    entityId: task.clientId,
+    createdAt: actedAt,
+    payload: {
+      userId,
+      endedAt: actedAt,
+      reason: reason?.trim() || undefined,
+    },
+  });
+
+  await refreshRuntimeStateFromStorage();
+  return toTaskDto(endedTask);
+}
+
+export async function toggleTaskFavoriteOffline(taskId: string, userId: string, isFavorite: boolean) {
+  const task = await findTaskByAnyId(taskId);
+  if (!task) {
+    throw new Error("Task not found in offline cache.");
+  }
+
+  const updatedTask: CachedTask = {
+    ...task,
+    isFavorite,
+    updatedAt: new Date().toISOString(),
+    syncStatus: task.remoteId ? "pending" : task.syncStatus,
+  };
+
+  await putIntoStore(TASK_STORE, updatedTask);
+  await updateTaskSnapshotAcrossOccurrences(updatedTask);
+  await enqueue({
+    userId,
+    type: "toggleFavorite",
+    entityId: task.clientId,
+    createdAt: new Date().toISOString(),
+    payload: {
+      userId,
+      isFavorite,
+    },
+  });
+
+  await refreshRuntimeStateFromStorage();
   return toTaskDto(updatedTask);
 }
 
 export async function applyOccurrenceActionOffline(occurrenceId: string, userId: string, action: "complete" | "ignore") {
-  const occurrence = await getFromStore<CachedOccurrence>(OCCURRENCE_STORE, occurrenceId);
+  const occurrence = await findOccurrenceByAnyId(occurrenceId);
   if (!occurrence) {
     throw new Error("Occurrence not found in offline cache.");
   }
@@ -589,16 +1188,15 @@ export async function applyOccurrenceActionOffline(occurrenceId: string, userId:
     treatedAt: actedAt,
     completedAt: action === "complete" ? actedAt : occurrence.completedAt ?? null,
     ignoredAt: action === "ignore" ? actedAt : occurrence.ignoredAt ?? null,
-    syncStatus: occurrence.remoteId ? "pending" : occurrence.syncStatus,
+    syncStatus: "pending",
     history: [{ id: createId("history"), action: action === "complete" ? "COMPLETED" : "IGNORED", actedAt }, ...occurrence.history],
   };
 
   await putIntoStore(OCCURRENCE_STORE, nextOccurrence);
   await enqueue({
-    id: createId("queue"),
     userId,
     type: action === "complete" ? "completeOccurrence" : "ignoreOccurrence",
-    entityId: occurrenceId,
+    entityId: occurrence.id,
     createdAt: actedAt,
     payload: {
       occurrenceId,
@@ -606,178 +1204,33 @@ export async function applyOccurrenceActionOffline(occurrenceId: string, userId:
     },
   });
 
+  await refreshRuntimeStateFromStorage();
   return toOccurrenceDetailsDto(nextOccurrence);
 }
 
-async function upsertTaskFromServer(task: TaskDto) {
-  const existingTasks = await getAllTasks();
-  const normalized = normalizeTask(task);
-  const existing = existingTasks.find((candidate) => matchesTask(candidate, task));
-
-  if (existing && existing.id !== normalized.id) {
-    await deleteFromStore(TASK_STORE, existing.id);
-  }
-
-  await putIntoStore(TASK_STORE, {
-    ...(existing ?? normalized),
-    ...normalized,
-    localOnly: false,
-    syncStatus: "synced",
-  });
-}
-
-async function getTaskByEntityId(entityId: string) {
-  const directMatch = await getFromStore<CachedTask>(TASK_STORE, entityId);
-  if (directMatch) {
-    return directMatch;
-  }
-
-  const allTasks = await getAllTasks();
-  return allTasks.find((task) => task.clientId === entityId || task.remoteId === entityId) ?? null;
-}
-
-async function resolveOccurrenceRemoteId(occurrence: CachedOccurrence) {
-  if (occurrence.remoteId) {
-    return occurrence.remoteId;
-  }
-
-  const task = await getFromStore<CachedTask>(TASK_STORE, occurrence.taskId);
-  const taskRemoteId = task?.remoteId ?? occurrence.taskRemoteId;
-  if (!taskRemoteId) {
-    return null;
-  }
-
-  const reconciled = await fetchApi<OccurrenceDetailsDto>(
-    `/api/occurrences/reconcile?userId=${encodeURIComponent(occurrence.userId)}&taskId=${encodeURIComponent(taskRemoteId)}&scheduledAt=${encodeURIComponent(
-      occurrence.scheduledAt,
-    )}`,
-    { method: "GET" },
-  );
-
-  const nextOccurrence: CachedOccurrence = {
-    ...occurrence,
-    id: reconciled.id,
-    remoteId: reconciled.id,
-    taskId: reconciled.taskId,
-    taskRemoteId: reconciled.task.id,
-    taskClientId: reconciled.task.clientId ?? occurrence.taskClientId,
-    task: {
-      ...reconciled.task,
-    },
-    localOnly: false,
-    syncStatus: "synced",
-  };
-
-  await deleteFromStore(OCCURRENCE_STORE, occurrence.id);
-  await putIntoStore(OCCURRENCE_STORE, nextOccurrence);
-  return reconciled.id;
-}
-
-export async function flushOfflineQueue() {
-  if (!navigator.onLine) {
-    return;
-  }
-
-  const items = await getAllQueueItems();
-
-  for (const item of items) {
-    try {
-      if (item.type === "createTask") {
-        const createdTask = await fetchApi<TaskDto>("/api/tasks", {
-          method: "POST",
-          body: JSON.stringify(item.payload),
-        });
-
-        await upsertTaskFromServer(createdTask);
-        const cachedTask = (await getAllTasks()).find((task) => task.clientId === (item.payload.clientId as string));
-        if (cachedTask) {
-          await replaceTaskOccurrences({
-            ...cachedTask,
-            id: createdTask.id,
-            remoteId: createdTask.id,
-            localOnly: false,
-            syncStatus: "synced",
-          });
-        }
-      }
-
-      if (item.type === "updateTask") {
-        const task = await getTaskByEntityId(item.entityId);
-        if (!task) {
-          await deleteFromStore(QUEUE_STORE, item.id);
-          continue;
-        }
-
-        if (!task?.remoteId) {
-          continue;
-        }
-
-        const updatedTask = await fetchApi<TaskDto>(`/api/tasks/${task.remoteId}`, {
-          method: "PUT",
-          body: JSON.stringify(item.payload),
-        });
-        await upsertTaskFromServer(updatedTask);
-      }
-
-      if (item.type === "completeOccurrence" || item.type === "ignoreOccurrence") {
-        const occurrence = await getFromStore<CachedOccurrence>(OCCURRENCE_STORE, item.entityId);
-        if (!occurrence) {
-          await deleteFromStore(QUEUE_STORE, item.id);
-          continue;
-        }
-
-        const remoteId = await resolveOccurrenceRemoteId(occurrence);
-        if (!remoteId) {
-          continue;
-        }
-
-        const action = item.type === "completeOccurrence" ? "complete" : "ignore";
-        const updatedOccurrence = await fetchApi<OccurrenceDetailsDto>(`/api/occurrences/${remoteId}/${action}`, {
-          method: "POST",
-          body: JSON.stringify({
-            userId: item.userId,
-            [action === "complete" ? "completedAt" : "ignoredAt"]: item.payload.occurredAt,
-          }),
-        });
-
-        await putIntoStore(OCCURRENCE_STORE, {
-          ...normalizeOccurrence(updatedOccurrence),
-          lastNotificationAt: occurrence.lastNotificationAt,
-        });
-      }
-
-      await deleteFromStore(QUEUE_STORE, item.id);
-    } catch (error) {
-      if (!navigator.onLine) {
-        return;
-      }
-
-      console.error("Offline queue flush failed.", error);
-    }
-  }
-}
-
-export async function syncTaskPageFromServer(userId: string, page: number, filters?: { status?: string; taskCode?: number }) {
+export async function syncTaskPageFromServer(userId: string, page: number, filters?: { status?: string; taskCode?: number; name?: string }) {
   const query = new URLSearchParams({
     userId,
     page: String(page),
-    pageSize: "10",
+    pageSize: "100",
   });
 
   if (filters?.taskCode) query.set("taskCode", String(filters.taskCode));
   if (filters?.status === "FAVORITES") query.set("favorite", "true");
   else if (filters?.status) query.set("status", filters.status);
+  if (filters?.name?.trim()) query.set("name", filters.name.trim());
 
   const payload = await fetchApi<TaskPageDto>(`/api/tasks?${query.toString()}`, { method: "GET" });
-  await cacheTaskPage(userId, payload);
-  return payload;
+  await cacheTaskSnapshot(userId, payload.items);
+  await refreshRuntimeStateFromStorage();
+  return loadTaskPageFromCache(userId, page, filters);
 }
 
 export async function syncOccurrencePageFromServer(userId: string, page: number, filters: OccurrenceFilters) {
   const query = new URLSearchParams({
     userId,
     page: String(page),
-    pageSize: "10",
+    pageSize: "100",
     sortOrder: filters.sortOrder ?? "oldest",
   });
 
@@ -786,20 +1239,30 @@ export async function syncOccurrencePageFromServer(userId: string, page: number,
   if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
   if (filters.dateTo) query.set("dateTo", filters.dateTo);
   if (filters.recurrenceType) query.set("recurrenceType", filters.recurrenceType);
+  if (filters.name?.trim()) query.set("name", filters.name.trim());
 
   const payload = await fetchApi<OccurrencePageDto>(`/api/occurrences?${query.toString()}`, { method: "GET" });
-  await cacheOccurrencePage(payload);
-  return payload;
+  await cacheOccurrenceSnapshot(userId, payload.items as OccurrenceDetailsDto[]);
+  await refreshRuntimeStateFromStorage();
+  return loadOccurrencePageFromCache(userId, page, filters);
 }
 
 export async function syncOccurrenceDetailsFromServer(occurrenceId: string, userId: string) {
+  if (!navigator.onLine) {
+    return getOccurrenceDetailsFromCache(occurrenceId);
+  }
+
   const occurrence = await fetchApi<OccurrenceDetailsDto>(`/api/occurrences/${occurrenceId}?userId=${encodeURIComponent(userId)}`, { method: "GET" });
-  await putIntoStore(OCCURRENCE_STORE, normalizeOccurrence(occurrence));
+  await putIntoStore(OCCURRENCE_STORE, {
+    ...normalizeOccurrence(occurrence),
+    lastNotificationAt: (await findOccurrenceByAnyId(occurrenceId))?.lastNotificationAt ?? null,
+  });
+  await refreshRuntimeStateFromStorage();
   return occurrence;
 }
 
 export async function markOccurrenceNotificationDelivered(occurrenceId: string, deliveredAt: string) {
-  const occurrence = await getFromStore<CachedOccurrence>(OCCURRENCE_STORE, occurrenceId);
+  const occurrence = await findOccurrenceByAnyId(occurrenceId);
   if (!occurrence) {
     return;
   }
@@ -843,8 +1306,21 @@ export async function requestBackgroundSync() {
   try {
     await (registration as ServiceWorkerRegistration & {
       sync: { register: (tag: string) => Promise<void> };
-    }).sync.register("taskmanager-offline-sync");
+    }).sync.register(OFFLINE_SYNC_TAG);
   } catch {
     // Background Sync is best-effort and unsupported in many browsers.
   }
+}
+
+export async function hydrateOfflineRuntimeState() {
+  return refreshRuntimeStateFromStorage();
+}
+
+export async function resetOfflineDataForTesting() {
+  await clearStore(TASK_STORE);
+  await clearStore(OCCURRENCE_STORE);
+  await clearStore(QUEUE_STORE);
+  await clearStore(METADATA_STORE);
+  Object.assign(runtimeState, createDefaultOfflineRuntimeState());
+  emitRuntimeState();
 }

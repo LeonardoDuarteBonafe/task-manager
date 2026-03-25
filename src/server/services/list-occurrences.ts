@@ -89,6 +89,7 @@ export async function listOccurrencesPaginated(input: ListRecurrencesInput): Pro
   const statusWhere = buildStatusWhere(input.status, now);
   const dateRange = buildDateRange(input.dateFrom, input.dateTo);
   const taskWhere: Prisma.TaskWhereInput = {
+    ...(input.name ? { title: { contains: input.name, mode: "insensitive" } } : {}),
     ...(input.recurrenceType ? { recurrenceType: input.recurrenceType } : {}),
   };
 
