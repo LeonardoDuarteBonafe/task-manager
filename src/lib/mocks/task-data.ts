@@ -241,9 +241,9 @@ export function buildMockOccurrencePage(
 }
 
 function paginate<T>(items: T[], page: number, pageSize: number) {
-  const safePage = Math.max(page, 1);
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
   const start = (safePage - 1) * pageSize;
 
   return {

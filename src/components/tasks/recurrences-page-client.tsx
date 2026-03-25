@@ -182,6 +182,18 @@ export function RecurrencesPageClient() {
     };
   }, [loadData]);
 
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    if (data.page !== filters.page) {
+      const nextFilters = { ...filters, page: data.page };
+      setFilters(nextFilters);
+      syncUrl(nextFilters, selectedOccurrenceId);
+    }
+  }, [data, filters, selectedOccurrenceId, syncUrl]);
+
   function applyFilters() {
     const nextFilters = { ...filters, page: 1 };
     setFilters(nextFilters);

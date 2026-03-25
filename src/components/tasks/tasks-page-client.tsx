@@ -185,6 +185,17 @@ export function TasksPageClient() {
     };
   }, [loadTasks]);
 
+  useEffect(() => {
+    if (!tasksData) {
+      return;
+    }
+
+    if (tasksData.page !== page) {
+      setViewState((current) => ({ ...current, page: tasksData.page }));
+      syncUrl(tasksData.page, statusFilter, taskCodeFilter, nameFilter);
+    }
+  }, [nameFilter, page, statusFilter, syncUrl, taskCodeFilter, tasksData]);
+
   function openModal(nextMode: "create" | "view" | "edit", nextTaskId?: string | null) {
     setModalState({
       open: true,
