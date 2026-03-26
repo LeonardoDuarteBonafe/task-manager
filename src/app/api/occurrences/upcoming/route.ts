@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { getUpcomingOccurrences } from "@/server/services";
-import { handleApiError, ok } from "../../_shared/http";
+import { handleApiError, ok, requireAuthenticatedUserId } from "../../_shared/http";
 
 const querySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   referenceDate: z.coerce.date().optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
   page: z.coerce.number().int().min(1).optional(),
@@ -20,8 +20,9 @@ export async function GET(request: Request) {
       page: url.searchParams.get("page") ?? undefined,
       pageSize: url.searchParams.get("pageSize") ?? undefined,
     });
+    const userId = await requireAuthenticatedUserId(query.userId);
 
-    const occurrences = await getUpcomingOccurrences(query);
+    const occurrences = await getUpcomingOccurrences({ ...query, userId });
     return ok(occurrences);
   } catch (error) {
     return handleApiError(error);

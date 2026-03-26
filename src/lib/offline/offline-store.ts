@@ -1,9 +1,17 @@
 "use client";
 
 import type { TaskFormValues } from "@/components/tasks/task-form";
-import type { OccurrenceDetailsDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/components/tasks/types";
+import type { OccurrenceDetailsDto, OccurrenceDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/components/tasks/types";
+import { AUTH_INVALID_EVENT } from "@/lib/http-client";
 import { buildMockOccurrencePage, buildMockTaskPage } from "@/lib/mocks/task-data";
-import { OFFLINE_DB_NAME, OFFLINE_DB_VERSION, OFFLINE_OCCURRENCE_HORIZON_DAYS, OFFLINE_SYNC_TAG } from "./config";
+import { getNotificationPermission, getNotificationsEnabled, isBackgroundPushAvailable } from "@/lib/notifications/web-notifications";
+import {
+  OFFLINE_BOOTSTRAP_LOOKBACK_DAYS,
+  OFFLINE_DB_NAME,
+  OFFLINE_DB_VERSION,
+  OFFLINE_OCCURRENCE_HORIZON_DAYS,
+  OFFLINE_SYNC_TAG,
+} from "./config";
 import { createDefaultOfflineRuntimeState, OFFLINE_RUNTIME_EVENT, type OfflineRuntimeState, type OfflineSyncPhase } from "./events";
 
 const TASK_STORE = "tasks";
@@ -62,8 +70,43 @@ type OccurrenceFilters = {
   sortOrder?: "oldest" | "newest";
 };
 
+type ProfileDto = {
+  id: string;
+  name: string | null;
+  email: string;
+  image?: string | null;
+};
+
+type OfflineSettingsSnapshot = {
+  notificationsEnabled: boolean;
+  notificationPermission: NotificationPermission | "unsupported";
+  backgroundPushAvailable: boolean;
+  currentDeviceSubscribed: boolean;
+  activeSubscriptionCount: number;
+  updatedAt: string;
+};
+
+type DashboardSnapshot = {
+  overdue: OccurrenceDto[];
+  upcoming: OccurrenceDto[];
+  favorites: TaskDto[];
+  updatedAt: string | null;
+};
+
 const runtimeState: OfflineRuntimeState = createDefaultOfflineRuntimeState();
 let activeSyncPromise: Promise<void> | null = null;
+
+function profileMetadataKey(userId: string) {
+  return `profile:${userId}`;
+}
+
+function settingsMetadataKey(userId: string) {
+  return `settings:${userId}`;
+}
+
+function bootstrapMetadataKey(userId: string) {
+  return `bootstrap:${userId}`;
+}
 
 function isIndexedDbSupported() {
   return typeof window !== "undefined" && "indexedDB" in window;
@@ -214,14 +257,37 @@ async function setMetadata(key: string, value: unknown) {
   await putIntoStore<MetadataRecord>(METADATA_STORE, { key, value });
 }
 
+function toIsoDateWithOffset(days: number) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+function getDefaultOfflineSettingsSnapshot(): OfflineSettingsSnapshot {
+  return {
+    notificationsEnabled: getNotificationsEnabled(),
+    notificationPermission: getNotificationPermission(),
+    backgroundPushAvailable: isBackgroundPushAvailable(),
+    currentDeviceSubscribed: false,
+    activeSubscriptionCount: 0,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 async function fetchApi<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     ...init,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
   });
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AUTH_INVALID_EVENT));
+  }
 
   const payload = (await response.json()) as
     | { success: true; data: T }
@@ -650,14 +716,16 @@ async function fetchAllTasksFromServer(userId: string) {
   return items;
 }
 
-async function fetchAllOccurrencesFromServer(userId: string) {
+async function fetchBootstrapOccurrencesFromServer(userId: string) {
   let page = 1;
   let totalPages = 1;
   const items: OccurrenceDetailsDto[] = [];
+  const dateFrom = toIsoDateWithOffset(-OFFLINE_BOOTSTRAP_LOOKBACK_DAYS);
+  const dateTo = toIsoDateWithOffset(OFFLINE_OCCURRENCE_HORIZON_DAYS);
 
   while (page <= totalPages) {
     const payload = await fetchApi<OccurrencePageDto>(
-      `/api/occurrences?userId=${encodeURIComponent(userId)}&page=${page}&pageSize=${OCCURRENCE_FETCH_PAGE_SIZE}&sortOrder=oldest`,
+      `/api/occurrences?userId=${encodeURIComponent(userId)}&page=${page}&pageSize=${OCCURRENCE_FETCH_PAGE_SIZE}&sortOrder=oldest&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`,
       { method: "GET" },
     );
     items.push(...(payload.items as OccurrenceDetailsDto[]));
@@ -666,6 +734,26 @@ async function fetchAllOccurrencesFromServer(userId: string) {
   }
 
   return items;
+}
+
+async function fetchProfileFromServer(userId: string) {
+  return fetchApi<ProfileDto>(`/api/profile?userId=${encodeURIComponent(userId)}`, { method: "GET" });
+}
+
+async function cacheProfileSnapshot(userId: string, profile: ProfileDto) {
+  await setMetadata(profileMetadataKey(userId), {
+    ...profile,
+    image: profile.image ?? null,
+  } satisfies ProfileDto);
+}
+
+async function cacheSettingsSnapshot(userId: string, snapshot: Partial<OfflineSettingsSnapshot> = {}) {
+  const current = (await getMetadata<OfflineSettingsSnapshot>(settingsMetadataKey(userId))) ?? getDefaultOfflineSettingsSnapshot();
+  await setMetadata(settingsMetadataKey(userId), {
+    ...current,
+    ...snapshot,
+    updatedAt: snapshot.updatedAt ?? new Date().toISOString(),
+  } satisfies OfflineSettingsSnapshot);
 }
 
 async function cacheTaskSnapshot(userId: string, tasks: TaskDto[]) {
@@ -789,7 +877,11 @@ async function cacheOccurrenceSnapshot(userId: string, occurrences: OccurrenceDe
 }
 
 async function refreshRemoteSnapshot(userId: string) {
-  const [tasksResult, occurrencesResult] = await Promise.allSettled([fetchAllTasksFromServer(userId), fetchAllOccurrencesFromServer(userId)]);
+  const [tasksResult, occurrencesResult, profileResult] = await Promise.allSettled([
+    fetchAllTasksFromServer(userId),
+    fetchBootstrapOccurrencesFromServer(userId),
+    fetchProfileFromServer(userId),
+  ]);
 
   if (tasksResult.status === "fulfilled") {
     await cacheTaskSnapshot(userId, tasksResult.value);
@@ -799,13 +891,20 @@ async function refreshRemoteSnapshot(userId: string) {
     await cacheOccurrenceSnapshot(userId, occurrencesResult.value);
   }
 
-  if (tasksResult.status === "rejected" && occurrencesResult.status === "rejected") {
+  if (profileResult.status === "fulfilled") {
+    await cacheProfileSnapshot(userId, profileResult.value);
+  }
+
+  await cacheSettingsSnapshot(userId);
+
+  if (tasksResult.status === "rejected" && occurrencesResult.status === "rejected" && profileResult.status === "rejected") {
     throw tasksResult.reason instanceof Error ? tasksResult.reason : new Error("Falha ao atualizar snapshot remoto.");
   }
 
   const syncedAt = new Date().toISOString();
   await setMetadata("lastSyncAt", syncedAt);
   await setMetadata("lastSyncError", null);
+  await setMetadata(bootstrapMetadataKey(userId), syncedAt);
   setRuntimeState({ lastSyncAt: syncedAt, lastSyncError: null });
 }
 
@@ -1069,6 +1168,89 @@ export async function loadOccurrencePageFromCache(userId: string, page: number, 
     page,
     filters,
   );
+}
+
+function toOccurrenceListDto(occurrence: CachedOccurrence): OccurrenceDto {
+  const details = toOccurrenceDetailsDto(occurrence);
+
+  return {
+    id: details.id,
+    taskId: details.taskId,
+    userId: details.userId,
+    recurrenceCode: details.recurrenceCode,
+    scheduledAt: details.scheduledAt,
+    isEnded: details.isEnded,
+    status: details.status,
+    history: details.history.map((item) => ({
+      id: item.id,
+      action: item.action,
+      actedAt: item.actedAt,
+    })),
+    task: details.task,
+  };
+}
+
+export async function loadDashboardFromCache(userId: string): Promise<DashboardSnapshot> {
+  const [tasks, occurrences, lastSyncAt] = await Promise.all([getAllTasks(), getAllOccurrences(), getMetadata<string>("lastSyncAt")]);
+  const userTasks = tasks.filter((task) => task.userId === userId);
+  const userOccurrences = occurrences.filter((occurrence) => occurrence.userId === userId);
+  const now = Date.now();
+
+  const pendingOccurrences = userOccurrences.filter(
+    (occurrence) => occurrence.status === "PENDING" && !occurrence.isEnded && occurrence.task.status === "ACTIVE" && !occurrence.task.isEnded,
+  );
+
+  const overdue = pendingOccurrences
+    .filter((occurrence) => new Date(occurrence.scheduledAt).getTime() <= now)
+    .sort((left, right) => new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime())
+    .slice(0, 3)
+    .map(toOccurrenceListDto);
+
+  const upcoming = pendingOccurrences
+    .filter((occurrence) => new Date(occurrence.scheduledAt).getTime() > now)
+    .sort((left, right) => new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime())
+    .slice(0, 3)
+    .map(toOccurrenceListDto);
+
+  const favorites = userTasks
+    .filter((task) => task.isFavorite)
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    .slice(0, 3)
+    .map(toTaskDto);
+
+  return {
+    overdue,
+    upcoming,
+    favorites,
+    updatedAt: lastSyncAt ?? null,
+  };
+}
+
+export async function loadProfileFromCache(userId: string) {
+  return (await getMetadata<ProfileDto>(profileMetadataKey(userId))) ?? null;
+}
+
+export async function syncProfileFromServer(userId: string) {
+  if (!navigator.onLine) {
+    return loadProfileFromCache(userId);
+  }
+
+  const profile = await fetchProfileFromServer(userId);
+  await cacheProfileSnapshot(userId, profile);
+  return profile;
+}
+
+export async function saveSettingsSnapshot(userId: string, snapshot: Partial<OfflineSettingsSnapshot>) {
+  await cacheSettingsSnapshot(userId, snapshot);
+}
+
+export async function loadSettingsFromCache(userId: string) {
+  return (await getMetadata<OfflineSettingsSnapshot>(settingsMetadataKey(userId))) ?? getDefaultOfflineSettingsSnapshot();
+}
+
+export async function hasCompletedOfflineBootstrap(userId: string) {
+  const bootstrappedAt = await getMetadata<string>(bootstrapMetadataKey(userId));
+  return Boolean(bootstrappedAt);
 }
 
 export async function getTaskDetailsFromCache(taskId: string) {
@@ -1350,11 +1532,16 @@ export async function hydrateOfflineRuntimeState() {
   return refreshRuntimeStateFromStorage();
 }
 
-export async function resetOfflineDataForTesting() {
+export async function clearOfflineUserData() {
   await clearStore(TASK_STORE);
   await clearStore(OCCURRENCE_STORE);
   await clearStore(QUEUE_STORE);
   await clearStore(METADATA_STORE);
+
   Object.assign(runtimeState, createDefaultOfflineRuntimeState());
   emitRuntimeState();
+}
+
+export async function resetOfflineDataForTesting() {
+  await clearOfflineUserData();
 }

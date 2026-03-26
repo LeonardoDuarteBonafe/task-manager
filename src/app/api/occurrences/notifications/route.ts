@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { listOccurrenceNotificationCandidates } from "@/server/services";
-import { handleApiError, ok } from "../../_shared/http";
+import { handleApiError, ok, requireAuthenticatedUserId } from "../../_shared/http";
 
 const querySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   referenceDate: z.coerce.date().optional(),
   lookAheadMinutes: z.coerce.number().int().min(1).max(1440).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
@@ -18,8 +18,9 @@ export async function GET(request: Request) {
       lookAheadMinutes: url.searchParams.get("lookAheadMinutes") ?? undefined,
       limit: url.searchParams.get("limit") ?? undefined,
     });
+    const userId = await requireAuthenticatedUserId(query.userId);
 
-    const items = await listOccurrenceNotificationCandidates(query);
+    const items = await listOccurrenceNotificationCandidates({ ...query, userId });
     return ok(items);
   } catch (error) {
     return handleApiError(error);

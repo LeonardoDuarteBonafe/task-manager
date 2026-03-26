@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/components/theme/theme-provider";
 import { OfflineStatus } from "@/components/pwa/offline-status";
+import { removeDevicePushSubscription } from "@/lib/notifications/web-notifications";
 import { isForcedUser } from "@/lib/mock-mode";
+import { clearOfflineUserData } from "@/lib/offline/offline-store";
+import { clearOfflineAuthSession, readOfflineAuthSession } from "@/lib/offline/user-session";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { OfflineRouteLink } from "./offline-route-link";
@@ -41,10 +44,31 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
   const pathname = usePathname();
   const router = useRouter();
   const { data } = useSession();
+  const [offlineSession, setOfflineSession] = useState(() => readOfflineAuthSession());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const forcedMode = isForcedUser(data?.user);
+  const effectiveUser = data?.user ?? offlineSession?.user;
+  const forcedMode = isForcedUser(data?.user ?? undefined);
 
-  const userLabel = useMemo(() => data?.user?.name || data?.user?.email || "Usuario", [data?.user?.email, data?.user?.name]);
+  useEffect(() => {
+    setOfflineSession(readOfflineAuthSession());
+  }, [data?.user?.email, data?.user?.id, data?.user?.image, data?.user?.name]);
+
+  const userLabel = useMemo(() => effectiveUser?.name || effectiveUser?.email || "Usuario", [effectiveUser?.email, effectiveUser?.name]);
+
+  async function handleSignOut() {
+    if (effectiveUser?.id) {
+      await removeDevicePushSubscription(effectiveUser.id).catch(() => false);
+    }
+
+    clearOfflineAuthSession();
+    await clearOfflineUserData();
+    if (navigator.onLine) {
+      await signOut({ callbackUrl: "/login" });
+      return;
+    }
+
+    router.replace("/login");
+  }
 
   const navigation = (
     <div className="flex h-full min-h-0 flex-col">
@@ -57,7 +81,7 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
           Task Manager
         </OfflineRouteLink>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          {data?.user?.email ? `Conectado como ${data.user.email}` : "Gerencie suas rotinas recorrentes."}
+          {effectiveUser?.email ? `Conectado como ${effectiveUser.email}` : "Gerencie suas rotinas recorrentes."}
         </p>
         {forcedMode ? (
           <p className="mt-3 rounded-2xl bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
@@ -91,9 +115,12 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
       </div>
 
       <div className="shrink-0 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+        <div className="mt-4">
+          <OfflineStatus />
+        </div>
         <ThemeSwitchButton />
-        {data?.user ? (
-          <Button className="w-full justify-center" onClick={() => signOut({ callbackUrl: "/login" })} type="button" variant="ghost">
+        {effectiveUser ? (
+          <Button className="w-full justify-center" onClick={() => void handleSignOut()} type="button" variant="ghost">
             Sair
           </Button>
         ) : null}
@@ -134,7 +161,7 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
               onClick={() => router.push("/meu-perfil")}
               type="button"
             >
-              <UserAvatar image={data?.user?.image} name={userLabel} />
+              <UserAvatar image={effectiveUser?.image} name={userLabel} />
             </button>
           </div>
         </header>
@@ -160,6 +187,3 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
     </main>
   );
 }
-        <div className="mt-4">
-          <OfflineStatus />
-        </div>

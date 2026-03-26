@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { createTask, getTasks } from "@/server/services";
-import { handleApiError, ok, readJsonOrThrow } from "../_shared/http";
+import { handleApiError, ok, readJsonOrThrow, requireAuthenticatedUserId } from "../_shared/http";
 
 const createTaskSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   clientId: z.string().min(1).optional(),
   title: z.string().min(1),
   notes: z.string().nullable().optional(),
@@ -19,7 +19,7 @@ const createTaskSchema = z.object({
 });
 
 const getTasksQuerySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   name: z.string().trim().min(1).optional(),
   taskCode: z.coerce.number().int().min(1).optional(),
   status: z.enum(["ACTIVE", "ENDED", "CANCELED", "ABORTED"]).optional(),
@@ -40,8 +40,9 @@ export async function GET(request: Request) {
       page: url.searchParams.get("page") ?? undefined,
       pageSize: url.searchParams.get("pageSize") ?? undefined,
     });
+    const userId = await requireAuthenticatedUserId(query.userId);
 
-    const payload = await getTasks(query);
+    const payload = await getTasks({ ...query, userId });
     return ok(payload);
   } catch (error) {
     return handleApiError(error);
@@ -52,7 +53,8 @@ export async function POST(request: Request) {
   try {
     const body = await readJsonOrThrow(request);
     const input = createTaskSchema.parse(body);
-    const task = await createTask(input);
+    const userId = await requireAuthenticatedUserId(input.userId);
+    const task = await createTask({ ...input, userId });
     return ok(task, { status: 201 });
   } catch (error) {
     return handleApiError(error);

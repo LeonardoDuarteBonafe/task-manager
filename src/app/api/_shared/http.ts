@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
+import { auth } from "@/auth";
 import { DomainError } from "@/server/services/task-domain/errors";
 
 type JsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
+
+export class ApiRouteError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: JsonValue,
+  ) {
+    super(message);
+    this.name = "ApiRouteError";
+  }
+}
 
 export function ok(data: JsonValue, init?: ResponseInit): NextResponse {
   return NextResponse.json(
@@ -36,6 +49,10 @@ function resolveDomainStatus(error: DomainError): number {
 }
 
 export function handleApiError(error: unknown): NextResponse {
+  if (error instanceof ApiRouteError) {
+    return fail(error.status, error.code, error.message, error.details);
+  }
+
   if (error instanceof ZodError) {
     return fail(400, "VALIDATION_ERROR", "Invalid request input.", error.flatten());
   }
@@ -65,4 +82,19 @@ export async function readJsonOrThrow(request: Request): Promise<unknown> {
   } catch {
     throw new DomainError("Request body must be a valid JSON.");
   }
+}
+
+export async function requireAuthenticatedUserId(providedUserId?: string | null): Promise<string> {
+  const session = await auth();
+  const sessionUserId = session?.user?.id;
+
+  if (!sessionUserId) {
+    throw new ApiRouteError(401, "UNAUTHORIZED", "Authentication required.");
+  }
+
+  if (providedUserId && providedUserId !== sessionUserId) {
+    throw new ApiRouteError(403, "FORBIDDEN", "Authenticated user does not match request.");
+  }
+
+  return sessionUserId;
 }

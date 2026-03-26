@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { auth } from "@/auth";
 import { Providers } from "./providers";
 import { PwaBootstrap } from "@/components/pwa/pwa-bootstrap";
 
@@ -30,11 +31,13 @@ type RootLayoutProps = Readonly<{
   children: React.ReactNode;
 }>;
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+  const session = await auth();
+
   return (
     <html lang="pt-BR">
       <body>
-        <Providers>{children}</Providers>
+        <Providers session={session}>{children}</Providers>
         <PwaBootstrap />
       </body>
     </html>

@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "TaskManager",
     short_name: "TaskManager",
     description: "Gerenciador de tarefas recorrentes",
-    start_url: "/",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

@@ -21,6 +21,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: hasDatabaseUrl ? PrismaAdapter(prisma) : undefined,
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ export function LoginCard({
   googleEnabled?: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,19 +25,21 @@ export function LoginCard({
   const [loading, setLoading] = useState(false);
   const [forceLoading, setForceLoading] = useState(false);
 
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+
   async function handleSignIn(nextEmail: string, nextPassword: string) {
     const result = await signIn("credentials", {
       redirect: false,
       email: nextEmail,
       password: nextPassword,
-      callbackUrl: "/dashboard",
+      callbackUrl,
     });
 
     if (!result || result.error) {
       throw new Error("Nao foi possivel entrar. Revise o e-mail e a senha.");
     }
 
-    router.push("/dashboard");
+    router.push(callbackUrl);
   }
 
   async function submitCredentials(event: React.FormEvent<HTMLFormElement>) {
@@ -68,9 +71,9 @@ export function LoginCard({
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/dashboard");
+      router.replace(callbackUrl);
     }
-  }, [status, router]);
+  }, [callbackUrl, status, router]);
 
   return (
     <Card className="space-y-5">
@@ -112,7 +115,7 @@ export function LoginCard({
       </form>
 
       {googleEnabled ? (
-        <Button className="w-full" onClick={() => signIn("google", { callbackUrl: "/dashboard" })} type="button" variant="secondary">
+        <Button className="w-full" onClick={() => signIn("google", { callbackUrl })} type="button" variant="secondary">
           Entrar com Google
         </Button>
       ) : null}

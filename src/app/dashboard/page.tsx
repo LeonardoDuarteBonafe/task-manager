@@ -11,9 +11,15 @@ import type { OccurrenceDetailsDto, OccurrenceDto, TaskDto } from "@/components/
 import { AppShell } from "@/components/ui/app-shell";
 import { Card } from "@/components/ui/card";
 import { PageState } from "@/components/ui/page-state";
-import { apiRequest } from "@/lib/http-client";
 import { buildMockOccurrencePage, buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
+import {
+  applyOccurrenceActionOffline,
+  loadDashboardFromCache,
+  synchronizeOfflineData,
+  toggleTaskFavoriteOffline,
+} from "@/lib/offline/offline-store";
+import { readOfflineAuthSession } from "@/lib/offline/user-session";
 
 function updateOccurrenceFavorites(items: OccurrenceDto[], taskId: string, isFavorite: boolean) {
   return items.map((occurrence) =>
@@ -32,7 +38,8 @@ function updateOccurrenceFavorites(items: OccurrenceDto[], taskId: string, isFav
 export default function DashboardPage() {
   const router = useRouter();
   const { status, data: session } = useSession();
-  const userId = session?.user?.id;
+  const [offlineUserId, setOfflineUserId] = useState<string | null>(null);
+  const userId = session?.user?.id ?? offlineUserId;
   const isMockMode = isForcedUser(session?.user);
 
   const [loading, setLoading] = useState(true);
@@ -65,31 +72,56 @@ export default function DashboardPage() {
         return;
       }
 
-      const [overdueData, upcomingData, favoriteData] = await Promise.all([
-        apiRequest<OccurrenceDto[]>(`/api/occurrences/overdue?userId=${encodeURIComponent(userId)}&limit=3`),
-        apiRequest<OccurrenceDto[]>(`/api/occurrences/upcoming?userId=${encodeURIComponent(userId)}&limit=3`),
-        apiRequest<{ items: TaskDto[] }>(`/api/tasks?userId=${encodeURIComponent(userId)}&favorite=true&page=1&pageSize=3`),
-      ]);
+      const cachedData = await loadDashboardFromCache(userId);
+      setOverdue(cachedData.overdue);
+      setUpcoming(cachedData.upcoming);
+      setFavorites(cachedData.favorites);
 
-      setOverdue(overdueData.sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)));
-      setUpcoming(upcomingData.sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)));
-      setFavorites(favoriteData.items);
+      if (navigator.onLine) {
+        await synchronizeOfflineData(userId, "foreground-sync");
+        const refreshed = await loadDashboardFromCache(userId);
+        setOverdue(refreshed.overdue);
+        setUpcoming(refreshed.upcoming);
+        setFavorites(refreshed.favorites);
+      }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Falha ao carregar dashboard.");
+      const cachedData = await loadDashboardFromCache(userId);
+      setOverdue(cachedData.overdue);
+      setUpcoming(cachedData.upcoming);
+      setFavorites(cachedData.favorites);
+      if (cachedData.overdue.length === 0 && cachedData.upcoming.length === 0 && cachedData.favorites.length === 0) {
+        setError(requestError instanceof Error ? requestError.message : "Falha ao carregar dashboard.");
+      }
     } finally {
       setLoading(false);
     }
   }, [isMockMode, userId]);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    setOfflineUserId(readOfflineAuthSession()?.user.id ?? null);
+  }, []);
+
+  useEffect(() => {
+    if (status === "unauthenticated" && navigator.onLine) {
       router.replace("/login");
       return;
     }
-    if (status === "authenticated") {
+    if (userId) {
       void loadData();
     }
-  }, [status, router, loadData]);
+  }, [status, router, loadData, userId]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadData();
+    };
+    window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loadData]);
 
   async function handleOccurrenceAction(occurrenceId: string, action: "complete" | "ignore") {
     if (!userId) return;
@@ -121,10 +153,7 @@ export default function DashboardPage() {
     setActionLoadingId(occurrenceId);
     setError(null);
     try {
-      await apiRequest(`/api/occurrences/${occurrenceId}/${action === "complete" ? "complete" : "ignore"}`, {
-        method: "POST",
-        body: JSON.stringify({ userId }),
-      });
+      await applyOccurrenceActionOffline(occurrenceId, userId, action);
       await loadData();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Acao nao concluida.");
@@ -152,10 +181,8 @@ export default function DashboardPage() {
     setOverdue((current) => updateOccurrenceFavorites(current, taskId, isFavorite));
     setUpcoming((current) => updateOccurrenceFavorites(current, taskId, isFavorite));
     try {
-      await apiRequest(`/api/tasks/${taskId}/favorite`, {
-        method: "POST",
-        body: JSON.stringify({ userId, isFavorite }),
-      });
+      await toggleTaskFavoriteOffline(taskId, userId, isFavorite);
+      await loadData();
     } catch (requestError) {
       setFavorites(previousFavorites);
       setOverdue(previousOverdue);
@@ -175,6 +202,14 @@ export default function DashboardPage() {
     return (
       <AppShell subtitle="Aguarde..." title="Painel">
         <PageState description="Verificando sessao..." title="Carregando" />
+      </AppShell>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <AppShell subtitle="Sem usuario local carregado." title="Painel">
+        <PageState description="Abra esta area online ao menos uma vez com sessao valida para reabrir o painel offline depois." title="Sessao indisponivel" />
       </AppShell>
     );
   }

@@ -10,20 +10,16 @@ import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
 import { apiRequest } from "@/lib/http-client";
 import { isForcedUser } from "@/lib/mock-mode";
+import { loadProfileFromCache, syncProfileFromServer } from "@/lib/offline/offline-store";
+import { readOfflineAuthSession } from "@/lib/offline/user-session";
 
 const FORCED_PROFILE_NAME_KEY = "taskmanager-forced-profile-name";
-
-type ProfileDto = {
-  id: string;
-  name: string | null;
-  email: string;
-  image?: string | null;
-};
 
 export default function MeuPerfilPage() {
   const router = useRouter();
   const { data: session, status, update } = useSession();
-  const userId = session?.user?.id;
+  const [offlineUserId, setOfflineUserId] = useState<string | null>(null);
+  const userId = session?.user?.id ?? offlineUserId;
   const isMockMode = isForcedUser(session?.user);
 
   const [loading, setLoading] = useState(true);
@@ -50,9 +46,21 @@ export default function MeuPerfilPage() {
         return;
       }
 
-      const profile = await apiRequest<ProfileDto>(`/api/profile?userId=${encodeURIComponent(userId)}`);
-      setName(profile.name || "");
-      setEmail(profile.email || session?.user?.email || "");
+      const cachedProfile = await loadProfileFromCache(userId);
+      if (cachedProfile) {
+        setName(cachedProfile.name || "");
+        setEmail(cachedProfile.email || session?.user?.email || "");
+      } else {
+        const offlineSession = readOfflineAuthSession();
+        setName(offlineSession?.user?.name || fallbackName);
+        setEmail(offlineSession?.user?.email || session?.user?.email || "");
+      }
+
+      if (navigator.onLine) {
+        const profile = await syncProfileFromServer(userId);
+        setName(profile?.name || "");
+        setEmail(profile?.email || session?.user?.email || "");
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao carregar perfil.");
     } finally {
@@ -61,15 +69,19 @@ export default function MeuPerfilPage() {
   }, [fallbackName, isMockMode, session?.user?.email, userId]);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    setOfflineUserId(readOfflineAuthSession()?.user.id ?? null);
+  }, []);
+
+  useEffect(() => {
+    if (status === "unauthenticated" && navigator.onLine) {
       router.replace("/login");
       return;
     }
 
-    if (status === "authenticated") {
+    if (userId) {
       void loadProfile();
     }
-  }, [loadProfile, router, status]);
+  }, [loadProfile, router, status, userId]);
 
   async function handleSave() {
     const trimmedName = name.trim();
@@ -96,6 +108,9 @@ export default function MeuPerfilPage() {
         body: JSON.stringify({ userId, name: trimmedName }),
       });
       await update({ name: trimmedName });
+      if (userId) {
+        await syncProfileFromServer(userId);
+      }
       setFeedback("Alteracoes salvas com sucesso.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Nao foi possivel salvar o perfil.");
@@ -108,6 +123,14 @@ export default function MeuPerfilPage() {
     return (
       <AppShell subtitle="Aguarde..." title="Meu Perfil">
         <PageState description="Verificando sessao..." title="Carregando" />
+      </AppShell>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <AppShell subtitle="Sem usuario local carregado." title="Meu Perfil">
+        <PageState description="Abra esta tela online ao menos uma vez com sessao valida para consultar os dados do perfil offline." title="Sessao indisponivel" />
       </AppShell>
     );
   }

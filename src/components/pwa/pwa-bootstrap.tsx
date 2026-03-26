@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { OFFLINE_FALLBACK_ROUTE, OFFLINE_SUPPORTED_ROUTES } from "@/lib/offline/config";
+import { OFFLINE_FALLBACK_ROUTE, OFFLINE_ROUTE_CACHE, OFFLINE_SUPPORTED_ROUTES } from "@/lib/offline/config";
 
-const ROUTE_CACHE = "taskmanager-routes-v2";
-
-async function warmOfflineRoutes() {
+export async function warmOfflineRoutes() {
   if (!("caches" in window) || !navigator.onLine) {
     return;
   }
 
-  const cache = await window.caches.open(ROUTE_CACHE);
+  const cache = await window.caches.open(OFFLINE_ROUTE_CACHE);
   const routes = [...OFFLINE_SUPPORTED_ROUTES, OFFLINE_FALLBACK_ROUTE];
 
   await Promise.all(

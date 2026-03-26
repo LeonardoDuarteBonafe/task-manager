@@ -1,8 +1,8 @@
-const STATIC_CACHE = "taskmanager-static-v2";
-const ROUTE_CACHE = "taskmanager-routes-v2";
-const RUNTIME_CACHE = "taskmanager-runtime-v2";
+const STATIC_CACHE = "taskmanager-static-v3";
+const ROUTE_CACHE = "taskmanager-routes-v3";
+const RUNTIME_CACHE = "taskmanager-runtime-v3";
 const OFFLINE_FALLBACK_ROUTE = "/offline";
-const OFFLINE_SUPPORTED_ROUTES = ["/", "/dashboard", "/tasks", "/recorrencias"];
+const OFFLINE_SUPPORTED_ROUTES = ["/", "/dashboard", "/tasks", "/recorrencias", "/configuracoes", "/meu-perfil"];
 const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg", OFFLINE_FALLBACK_ROUTE];
 
 function createNotificationId(prefix = "desktop") {

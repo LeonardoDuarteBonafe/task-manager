@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { getTaskById, updateTask } from "@/server/services";
-import { handleApiError, ok, readJsonOrThrow } from "../../_shared/http";
+import { handleApiError, ok, readJsonOrThrow, requireAuthenticatedUserId } from "../../_shared/http";
 
 const paramsSchema = z.object({
   id: z.string().min(1),
 });
 
 const getQuerySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
 });
 
 const updateTaskSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   clientId: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
   notes: z.string().nullable().optional(),
@@ -40,10 +40,11 @@ export async function GET(request: Request, context: RouteContext) {
     const query = getQuerySchema.parse({
       userId: url.searchParams.get("userId"),
     });
+    const userId = await requireAuthenticatedUserId(query.userId);
 
     const task = await getTaskById({
       taskId: params.id,
-      userId: query.userId,
+      userId,
     });
 
     return ok(task);
@@ -56,10 +57,12 @@ export async function PUT(request: Request, context: RouteContext) {
   try {
     const params = paramsSchema.parse(await context.params);
     const body = updateTaskSchema.parse(await readJsonOrThrow(request));
+    const userId = await requireAuthenticatedUserId(body.userId);
 
     const task = await updateTask({
       taskId: params.id,
       ...body,
+      userId,
     });
     return ok(task);
   } catch (error) {

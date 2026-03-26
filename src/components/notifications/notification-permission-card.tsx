@@ -16,11 +16,14 @@ import {
   isBackgroundPushAvailable,
   isIosDevice,
   isNotificationSupported,
+  isPushManagerSupported,
   isStandaloneDisplayMode,
   removeDevicePushSubscription,
   isServiceWorkerSupported,
   showTaskNotificationPreview,
 } from "@/lib/notifications/web-notifications";
+import { loadSettingsFromCache, saveSettingsSnapshot } from "@/lib/offline/offline-store";
+import { readOfflineAuthSession } from "@/lib/offline/user-session";
 
 type PermissionState = NotificationPermission | "unsupported";
 
@@ -64,7 +67,8 @@ function getBadgeClasses(permission: PermissionState) {
 
 export function NotificationPermissionCard({ mode = "settings" }: NotificationPermissionCardProps) {
   const { data: session } = useSession();
-  const userId = session?.user?.id;
+  const [offlineUserId, setOfflineUserId] = useState<string | null>(null);
+  const userId = session?.user?.id ?? offlineUserId;
   const [permission, setPermission] = useState<PermissionState>("default");
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -83,17 +87,50 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
   }, []);
 
   useEffect(() => {
+    setOfflineUserId(readOfflineAuthSession()?.user.id ?? null);
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    void loadSettingsFromCache(userId).then((cachedSettings) => {
+      setEnabled(cachedSettings.notificationsEnabled);
+      setPermission(cachedSettings.notificationPermission);
+      setPushStatus({
+        configured: cachedSettings.activeSubscriptionCount > 0,
+        supported: isPushManagerSupported(),
+        vapidPublicKeyConfigured: Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+        activeSubscriptionCount: cachedSettings.activeSubscriptionCount,
+        currentDeviceSubscribed: cachedSettings.currentDeviceSubscribed,
+      });
+    });
+  }, [userId]);
+
+  useEffect(() => {
     if (!userId || !backgroundPushAvailable) {
-      setPushStatus(null);
+      return;
+    }
+
+    if (!navigator.onLine) {
       return;
     }
 
     void (async () => {
       const subscription = await hasActiveCurrentDevicePushSubscription(userId);
       const status = await apiRequest<PushSubscriptionStatus>(`/api/notifications/push-subscriptions?userId=${encodeURIComponent(userId)}`);
-      setPushStatus({
+      const nextStatus = {
         ...status,
         currentDeviceSubscribed: subscription,
+      };
+      setPushStatus(nextStatus);
+      await saveSettingsSnapshot(userId, {
+        notificationsEnabled: getNotificationsEnabled(),
+        notificationPermission: getNotificationPermission(),
+        backgroundPushAvailable,
+        currentDeviceSubscribed: subscription,
+        activeSubscriptionCount: nextStatus.activeSubscriptionCount,
       });
     })().catch(() => {
       setPushStatus(null);
@@ -116,16 +153,25 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
         }
         disableNotifications();
         setEnabled(false);
-        setPushStatus((current) =>
-          current
+        const nextStatus =
+          pushStatus
             ? {
-                ...current,
-                configured: Math.max(0, current.activeSubscriptionCount - (current.currentDeviceSubscribed ? 1 : 0)) > 0,
+                ...pushStatus,
+                configured: Math.max(0, pushStatus.activeSubscriptionCount - (pushStatus.currentDeviceSubscribed ? 1 : 0)) > 0,
                 currentDeviceSubscribed: false,
-                activeSubscriptionCount: Math.max(0, current.activeSubscriptionCount - (current.currentDeviceSubscribed ? 1 : 0)),
+                activeSubscriptionCount: Math.max(0, pushStatus.activeSubscriptionCount - (pushStatus.currentDeviceSubscribed ? 1 : 0)),
               }
-            : current,
-        );
+            : null;
+        setPushStatus(nextStatus);
+        if (userId) {
+          await saveSettingsSnapshot(userId, {
+            notificationsEnabled: false,
+            notificationPermission: getNotificationPermission(),
+            backgroundPushAvailable,
+            currentDeviceSubscribed: false,
+            activeSubscriptionCount: nextStatus?.activeSubscriptionCount ?? 0,
+          });
+        }
         setFeedback("Notificacoes do aplicativo desabilitadas neste dispositivo.");
         return;
       }
@@ -137,17 +183,48 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
 
       if (nextPermission === "granted" && nextEnabled) {
         if (userId && backgroundPushAvailable) {
-          await ensureDevicePushSubscription(userId);
-          const status = await apiRequest<PushSubscriptionStatus>(`/api/notifications/push-subscriptions?userId=${encodeURIComponent(userId)}`);
-          setPushStatus({
-            ...status,
-            currentDeviceSubscribed: true,
-          });
-          setFeedback("Notificacoes habilitadas com Web Push ativo neste dispositivo.");
+          if (navigator.onLine) {
+            await ensureDevicePushSubscription(userId);
+            const status = await apiRequest<PushSubscriptionStatus>(`/api/notifications/push-subscriptions?userId=${encodeURIComponent(userId)}`);
+            const nextStatus = {
+              ...status,
+              currentDeviceSubscribed: true,
+            };
+            setPushStatus(nextStatus);
+            await saveSettingsSnapshot(userId, {
+              notificationsEnabled: true,
+              notificationPermission: nextPermission,
+              backgroundPushAvailable,
+              currentDeviceSubscribed: true,
+              activeSubscriptionCount: nextStatus.activeSubscriptionCount,
+            });
+            setFeedback("Notificacoes habilitadas com Web Push ativo neste dispositivo.");
+          } else {
+            await saveSettingsSnapshot(userId, {
+              notificationsEnabled: true,
+              notificationPermission: nextPermission,
+              backgroundPushAvailable,
+            });
+            setFeedback("Notificacoes locais habilitadas. O registro push sera concluido quando a conexao voltar.");
+          }
         } else {
+          if (userId) {
+            await saveSettingsSnapshot(userId, {
+              notificationsEnabled: true,
+              notificationPermission: nextPermission,
+              backgroundPushAvailable,
+            });
+          }
           setFeedback("Notificacoes habilitadas com sucesso.");
         }
       } else if (nextPermission === "denied") {
+        if (userId) {
+          await saveSettingsSnapshot(userId, {
+            notificationsEnabled: false,
+            notificationPermission: nextPermission,
+            backgroundPushAvailable,
+          });
+        }
         setFeedback("A permissao foi negada neste navegador.");
       } else if (nextPermission === "unsupported") {
         setFeedback("Este navegador nao suporta notificacoes web.");
@@ -164,7 +241,7 @@ export function NotificationPermissionCard({ mode = "settings" }: NotificationPe
     setFeedback(null);
 
     try {
-      const shown = await showTaskNotificationPreview("Tomar remedio", "08:00", new Date(), undefined, 1, userId);
+      const shown = await showTaskNotificationPreview("Tomar remedio", "08:00", new Date(), undefined, 1, userId ?? undefined);
       setFeedback(shown ? "Notificacao disparada com sucesso." : "Nao foi possivel exibir a notificacao. Verifique permissao e estado atual.");
     } finally {
       setLoading(false);

@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { listOccurrencesPaginated } from "@/server/services";
-import { handleApiError, ok } from "../_shared/http";
+import { handleApiError, ok, requireAuthenticatedUserId } from "../_shared/http";
 
 const querySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   name: z.string().trim().min(1).optional(),
   recurrenceCode: z.coerce.number().int().min(1).optional(),
   status: z.enum(["OVERDUE", "UPCOMING", "OPEN", "COMPLETED", "IGNORED", "CANCELED", "ABORTED", "FAVORITES"]).optional(),
@@ -30,8 +30,9 @@ export async function GET(request: Request) {
       page: url.searchParams.get("page") ?? undefined,
       pageSize: url.searchParams.get("pageSize") ?? undefined,
     });
+    const userId = await requireAuthenticatedUserId(query.userId);
 
-    const payload = await listOccurrencesPaginated(query);
+    const payload = await listOccurrencesPaginated({ ...query, userId });
     return ok(payload);
   } catch (error) {
     return handleApiError(error);
