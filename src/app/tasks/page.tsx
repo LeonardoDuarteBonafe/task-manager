@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { TasksPageClient } from "@/components/tasks/tasks-page-client";
+import { TasksPageClient } from "@/features/tasks";
 import { PageState } from "@/components/ui/page-state";
 
 export default function TasksPage() {

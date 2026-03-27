@@ -8,8 +8,11 @@ type PageStateProps = {
 export function PageState({ title, description }: PageStateProps) {
   return (
     <Card className="text-center">
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{description}</p>
+      <span className="inline-flex rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-strong)]">
+        Estado
+      </span>
+      <h2 className="mt-4 font-display text-3xl text-[var(--foreground)]">{title}</h2>
+      <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{description}</p>
     </Card>
   );
 }

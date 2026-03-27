@@ -4,16 +4,48 @@
 
 :root {
   color-scheme: light;
-  --page-bg: #f8fafc;
-  --page-text: #0f172a;
-  --page-accent: radial-gradient(circle at top right, #e2e8f0 0%, transparent 45%);
+  --background: #f2ede4;
+  --background-strong: #e9dfd0;
+  --foreground: #1c2430;
+  --muted: #52606d;
+  --muted-strong: #7d4b34;
+  --surface-panel: rgba(255, 251, 245, 0.82);
+  --surface-card: rgba(255, 255, 255, 0.72);
+  --surface-elevated: rgba(255, 255, 255, 0.9);
+  --surface-contrast: #1f3042;
+  --surface-accent: #b84f2f;
+  --surface-accent-strong: #9f4023;
+  --border-subtle: rgba(65, 49, 32, 0.12);
+  --border-strong: rgba(65, 49, 32, 0.22);
+  --ring: rgba(184, 79, 47, 0.28);
+  --shadow-soft: 0 22px 70px rgba(38, 27, 18, 0.12);
+  --page-accent:
+    radial-gradient(circle at top left, rgba(184, 79, 47, 0.2), transparent 28%),
+    radial-gradient(circle at 82% 16%, rgba(31, 58, 95, 0.18), transparent 25%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 48%);
 }
 
 .dark {
   color-scheme: dark;
-  --page-bg: #0b1220;
-  --page-text: #e2e8f0;
-  --page-accent: radial-gradient(circle at top right, rgba(37, 99, 235, 0.18) 0%, transparent 45%);
+  --background: #171b1f;
+  --background-strong: #101419;
+  --foreground: #ece4d8;
+  --muted: #b8ae9f;
+  --muted-strong: #d0a383;
+  --surface-panel: rgba(28, 32, 37, 0.82);
+  --surface-card: rgba(31, 36, 41, 0.78);
+  --surface-elevated: rgba(39, 44, 50, 0.9);
+  --surface-contrast: #f0e4d0;
+  --surface-accent: #df7b4f;
+  --surface-accent-strong: #f09567;
+  --border-subtle: rgba(240, 228, 208, 0.08);
+  --border-strong: rgba(240, 228, 208, 0.16);
+  --ring: rgba(223, 123, 79, 0.26);
+  --shadow-soft: 0 28px 80px rgba(0, 0, 0, 0.34);
+  --page-accent:
+    radial-gradient(circle at top left, rgba(223, 123, 79, 0.16), transparent 26%),
+    radial-gradient(circle at 82% 16%, rgba(130, 170, 214, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 48%);
 }
 
 html,
@@ -22,8 +54,96 @@ body {
 }
 
 body {
-  @apply antialiased transition-colors duration-200;
-  background-color: var(--page-bg);
-  color: var(--page-text);
+  @apply antialiased transition-colors duration-300;
+  background-color: var(--background);
+  color: var(--foreground);
   background-image: var(--page-accent);
+  font-family: var(--font-body), sans-serif;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(65, 49, 32, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(65, 49, 32, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at center, black 48%, transparent 90%);
+  opacity: 0.38;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+::selection {
+  background: rgba(184, 79, 47, 0.18);
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+}
+
+.fade-up {
+  animation: fade-up 500ms ease both;
+}
+
+.grain-overlay {
+  position: relative;
+}
+
+.grain-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.2) 0, transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(0, 0, 0, 0.16) 0, transparent 28%),
+    radial-gradient(circle at 50% 80%, rgba(0, 0, 0, 0.2) 0, transparent 30%);
+}
+
+.auth-stage {
+  position: relative;
+}
+
+.auth-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(125deg, rgba(255, 255, 255, 0.16), transparent 36%),
+    radial-gradient(circle at bottom left, rgba(184, 79, 47, 0.14), transparent 30%);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-strong) transparent;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

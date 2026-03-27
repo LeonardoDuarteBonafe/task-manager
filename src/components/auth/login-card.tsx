@@ -63,7 +63,7 @@ export function LoginCard({
     try {
       await handleSignIn(FORCE_LOGIN_EMAIL, FORCE_LOGIN_PASSWORD);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Nao foi possivel ativar o acesso forcado.");
+      setError(requestError instanceof Error ? requestError.message : "Nao foi possivel ativar o modo de demonstracao.");
     } finally {
       setForceLoading(false);
     }
@@ -76,15 +76,18 @@ export function LoginCard({
   }, [callbackUrl, status, router]);
 
   return (
-    <Card className="space-y-5">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">TaskManager</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400">Entre para acessar seu painel de tarefas recorrentes.</p>
+    <Card className="fade-up space-y-6 p-6 md:p-7">
+      <div className="space-y-2">
+        <span className="inline-flex rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-strong)]">
+          Sessao segura
+        </span>
+        <h2 className="font-display text-4xl leading-none text-[var(--foreground)]">Entre e retome o ritmo.</h2>
+        <p className="text-sm leading-6 text-[var(--muted)]">Acesse seu painel para acompanhar recorrencias, notificacoes e tarefas prioritarias.</p>
       </div>
 
-      <form className="space-y-3" onSubmit={submitCredentials}>
+      <form className="space-y-4" onSubmit={submitCredentials}>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="email">
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-strong)]" htmlFor="email">
             E-mail
           </label>
           <Input
@@ -97,7 +100,7 @@ export function LoginCard({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="password">
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-strong)]" htmlFor="password">
             Senha
           </label>
           <Input
@@ -120,27 +123,27 @@ export function LoginCard({
         </Button>
       ) : null}
 
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+      <div className="rounded-[1.5rem] border border-dashed border-[var(--border-strong)] bg-[var(--surface-elevated)] p-4">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Acesso forcado pelo front</p>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Esse acesso nao depende de usuário salvo no banco. Ele serve para navegar e validar a interface, com limitacoes nos dados exibidos.
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">Acesso de demonstracao</p>
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            Esse acesso nao depende de usuario salvo no banco. Ele serve para validar a interface com dados demonstrativos.
           </p>
           <Button className="w-full" disabled={loading || forceLoading} onClick={submitForceAccess} type="button" variant="ghost">
-            {forceLoading ? "Entrando..." : "Entrar em modo forcado"}
+            {forceLoading ? "Entrando..." : "Entrar no modo de demonstracao"}
           </Button>
         </div>
       </div>
 
       <div className="space-y-2 text-center text-sm">
-        <Link className="block text-slate-600 underline dark:text-slate-300" href="/cadastro">
+        <Link className="block text-[var(--muted)] underline decoration-[var(--muted-strong)] underline-offset-4" href="/cadastro">
           Criar conta
         </Link>
-        <Link className="block text-slate-600 underline dark:text-slate-300" href="/recuperar-senha">
+        <Link className="block text-[var(--muted)] underline decoration-[var(--muted-strong)] underline-offset-4" href="/recuperar-senha">
           Esqueci minha senha
         </Link>
         {showBackLink ? (
-          <Link className="block text-slate-600 underline dark:text-slate-300" href="/login">
+          <Link className="block text-[var(--muted)] underline decoration-[var(--muted-strong)] underline-offset-4" href="/login">
             Ir para a rota de login
           </Link>
         ) : null}

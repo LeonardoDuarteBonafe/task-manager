@@ -35,7 +35,7 @@ function ThemeSwitchButton() {
 
   return (
     <Button className="w-full justify-center" onClick={toggleTheme} type="button" variant="secondary">
-      Tema: {theme === "dark" ? "Escuro" : "Claro"}
+      Tema {theme === "dark" ? "noturno" : "claro"}
     </Button>
   );
 }
@@ -73,19 +73,18 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
   const navigation = (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 px-1">
-        <OfflineRouteLink
-          className="inline-flex items-center text-lg font-semibold text-slate-900 transition hover:text-slate-700 dark:text-slate-100 dark:hover:text-slate-300"
-          href="/"
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          Task Manager
+        <span className="inline-flex rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-strong)]">
+          Atelier de rotina
+        </span>
+        <OfflineRouteLink className="mt-4 inline-flex items-center font-display text-3xl leading-none text-[var(--foreground)]" href="/" onClick={() => setMobileMenuOpen(false)}>
+          TaskManager
         </OfflineRouteLink>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        <p className="mt-3 max-w-xs text-sm leading-6 text-[var(--muted)]">
           {effectiveUser?.email ? `Conectado como ${effectiveUser.email}` : "Gerencie suas rotinas recorrentes."}
         </p>
         {forcedMode ? (
-          <p className="mt-3 rounded-2xl bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
-            Modo forcado ativo: alguns dados sao simulados e podem aparecer limitados.
+          <p className="mt-4 rounded-[1.3rem] border border-amber-300/50 bg-amber-100/80 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+            Modo de demonstracao ativo: alguns dados seguem um conjunto simulado.
           </p>
         ) : null}
       </div>
@@ -101,10 +100,10 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  "rounded-2xl px-4 py-3 text-sm font-medium transition",
+                  "rounded-[1.35rem] border px-4 py-3 text-sm font-semibold tracking-[0.04em] transition",
                   active
-                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950"
-                    : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900/80",
+                    ? "border-transparent bg-[var(--surface-accent)] text-white shadow-[0_18px_35px_rgba(184,79,47,0.22)]"
+                    : "border-transparent text-[var(--foreground)] hover:border-[var(--border-subtle)] hover:bg-[var(--surface-card)]",
                 )}
               >
                 {link.label}
@@ -114,7 +113,7 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
         </nav>
       </div>
 
-      <div className="shrink-0 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+      <div className="shrink-0 space-y-2 border-t border-[var(--border-subtle)] pt-4">
         <div className="mt-4">
           <OfflineStatus />
         </div>
@@ -129,51 +128,61 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
   );
 
   return (
-    <main className="flex h-screen w-full overflow-hidden">
-      <aside className="hidden h-screen w-72 shrink-0 border-r border-slate-200 bg-white/85 px-5 py-5 backdrop-blur md:block dark:border-slate-800 dark:bg-slate-950/80">
+    <main className="flex min-h-screen w-full overflow-hidden">
+      <aside className="hidden h-screen w-80 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--surface-panel)] px-5 py-5 backdrop-blur md:block">
         {navigation}
       </aside>
 
       {mobileMenuOpen ? (
-        <div className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm md:hidden">
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden">
           <button aria-label="Fechar menu" className="absolute inset-0" onClick={() => setMobileMenuOpen(false)} type="button" />
-          <aside className="relative z-10 flex h-full w-80 max-w-[86vw] flex-col border-r border-slate-200 bg-white px-5 py-5 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+          <aside className="relative z-10 flex h-full w-80 max-w-[86vw] flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-panel)] px-5 py-5 shadow-[var(--shadow-soft)]">
             {navigation}
           </aside>
         </div>
       ) : null}
 
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur md:px-6 dark:border-slate-800 dark:bg-slate-950/70">
+        <header className="border-b border-[var(--border-subtle)] bg-[var(--surface-panel)] px-4 py-3 backdrop-blur md:px-6">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <Button className="px-3 md:hidden" onClick={() => setMobileMenuOpen(true)} type="button" variant="secondary">
                 Menu
               </Button>
-              <OfflineRouteLink className="truncate text-lg font-semibold text-slate-900 transition hover:text-slate-700 dark:text-slate-100 dark:hover:text-slate-300" href="/">
-                Task Manager
-              </OfflineRouteLink>
+              <div className="min-w-0">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-strong)]">Pulseboard</p>
+                <OfflineRouteLink className="truncate font-display text-2xl leading-none text-[var(--foreground)]" href="/">
+                  TaskManager
+                </OfflineRouteLink>
+              </div>
+              {subtitle ? <p className="hidden max-w-xl text-sm leading-6 text-[var(--muted)] lg:block">{subtitle}</p> : null}
             </div>
 
-            <button
-              aria-label="Abrir Meu Perfil"
-              className="rounded-full transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-700"
-              onClick={() => router.push("/meu-perfil")}
-              type="button"
-            >
-              <UserAvatar image={effectiveUser?.image} name={userLabel} />
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="hidden rounded-full border border-[var(--border-subtle)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted-strong)] md:block">
+                {title}
+              </div>
+              <button
+                aria-label="Abrir Meu Perfil"
+                className="rounded-full ring-offset-2 ring-offset-transparent transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                onClick={() => router.push("/meu-perfil")}
+                type="button"
+              >
+                <UserAvatar image={effectiveUser?.image} name={userLabel} />
+              </button>
+            </div>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
             {showPageHeader ? (
-              <header className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+              <header className="fade-up overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-panel)] p-6 shadow-[var(--shadow-soft)] backdrop-blur">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
-                    {subtitle ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{subtitle}</p> : null}
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-strong)]">Painel de comando</p>
+                    <h1 className="mt-3 font-display text-4xl leading-none text-[var(--foreground)] md:text-5xl">{title}</h1>
+                    {subtitle ? <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)] md:text-base">{subtitle}</p> : null}
                   </div>
                   {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
                 </div>

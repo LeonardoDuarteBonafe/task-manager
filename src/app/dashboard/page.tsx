@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { FavoriteTaskCard } from "@/components/tasks/favorite-task-card";
-import { OccurrenceDialog } from "@/components/tasks/occurrence-dialog";
-import { OccurrenceSection } from "@/components/tasks/occurrence-section";
-import { TaskDialog } from "@/components/tasks/task-dialog";
-import type { OccurrenceDetailsDto, OccurrenceDto, TaskDto } from "@/components/tasks/types";
+import { FavoriteTaskCard, OccurrenceDialog, OccurrenceSection, TaskDialog } from "@/features/tasks";
+import type { OccurrenceDetailsDto, OccurrenceDto, TaskDto } from "@/features/tasks";
 import { AppShell } from "@/components/ui/app-shell";
 import { Card } from "@/components/ui/card";
 import { PageState } from "@/components/ui/page-state";
@@ -228,7 +225,7 @@ export default function DashboardPage() {
             onIgnore={(id) => handleOccurrenceAction(id, "ignore")}
             onOpen={setSelectedOccurrenceId}
             onViewTask={(taskCode) => router.push(`/tasks?code=${taskCode}&page=1`)}
-            title="Proximas"
+            title="A seguir"
             viewAllHref="/recorrencias?status=UPCOMING&page=1"
           />
           <OccurrenceSection
@@ -248,15 +245,19 @@ export default function DashboardPage() {
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Favoritos</h2>
-            <button className="text-sm font-medium text-slate-700 underline dark:text-slate-300" onClick={() => router.push("/tasks")} type="button">
+            <h2 className="font-display text-3xl text-[var(--foreground)]">Favoritos</h2>
+            <button
+              className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted-strong)] underline decoration-[var(--muted-strong)] underline-offset-4"
+              onClick={() => router.push("/tasks")}
+              type="button"
+            >
               Ver todas
             </button>
           </div>
           {loading ? <PageState description="Buscando favoritos..." title="Carregando" /> : null}
           {!loading && !error && favorites.length === 0 ? (
             <Card>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Marque tarefas como favoritas para acompanhar aqui no painel.</p>
+              <p className="text-sm leading-6 text-[var(--muted)]">Marque tarefas como favoritas para acompanhar aqui no painel.</p>
             </Card>
           ) : null}
           {!loading && !error && favorites.length > 0

@@ -1,4 +1,4 @@
-import type { OccurrenceDetailsDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/components/tasks/types";
+import type { OccurrenceDetailsDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/features/tasks";
 
 function addDays(date: Date, days: number) {
   const next = new Date(date);

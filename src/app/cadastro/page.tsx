@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { AuthStage } from "@/components/auth/auth-stage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,28 +65,35 @@ export default function CadastroPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-8">
-      <Card className="space-y-5">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Criar conta</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">Cadastre seu acesso para organizar tarefas e recorrencias.</p>
+    <AuthStage
+      description="Crie seu acesso para organizar tarefas recorrentes com notificacoes, favoritos e acompanhamento offline."
+      eyebrow="Cadastro"
+      title="Abra sua mesa de rotinas."
+    >
+      <Card className="space-y-6 p-6 md:p-7">
+        <div className="space-y-2">
+          <span className="inline-flex rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-strong)]">
+            Novo acesso
+          </span>
+          <h1 className="font-display text-4xl leading-none text-[var(--foreground)]">Criar conta</h1>
+          <p className="text-sm leading-6 text-[var(--muted)]">Cadastre seu acesso para organizar tarefas e recorrencias em uma experiencia mais consistente.</p>
         </div>
 
-        <form className="space-y-3" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="email">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-strong)]" htmlFor="email">
               E-mail
             </label>
             <Input id="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="password">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-strong)]" htmlFor="password">
               Senha
             </label>
             <Input id="password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="confirmPassword">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-strong)]" htmlFor="confirmPassword">
               Confirmar senha
             </label>
             <Input
@@ -103,10 +111,10 @@ export default function CadastroPage() {
           </Button>
         </form>
 
-        <Link className="block text-center text-sm text-slate-600 underline dark:text-slate-300" href="/login">
+        <Link className="block text-center text-sm text-[var(--muted)] underline decoration-[var(--muted-strong)] underline-offset-4" href="/login">
           Ja tenho uma conta
         </Link>
       </Card>
-    </main>
+    </AuthStage>
   );
 }

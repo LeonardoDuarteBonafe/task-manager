@@ -1,7 +1,7 @@
 "use client";
 
-import type { TaskFormValues } from "@/components/tasks/task-form";
-import type { OccurrenceDetailsDto, OccurrenceDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/components/tasks/types";
+import type { TaskFormValues } from "@/features/tasks";
+import type { OccurrenceDetailsDto, OccurrenceDto, OccurrencePageDto, TaskDto, TaskPageDto } from "@/features/tasks";
 import { AUTH_INVALID_EVENT } from "@/lib/http-client";
 import { buildMockOccurrencePage, buildMockTaskPage } from "@/lib/mocks/task-data";
 import { getNotificationPermission, getNotificationsEnabled, isBackgroundPushAvailable } from "@/lib/notifications/web-notifications";
