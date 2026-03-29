@@ -1,5 +1,6 @@
 export { FavoriteTaskCard } from "@/components/tasks/favorite-task-card";
 export { OccurrenceDialog } from "@/components/tasks/occurrence-dialog";
+export { RecurrenceCard } from "@/components/tasks/occurrence-item";
 export { OccurrenceSection } from "@/components/tasks/occurrence-section";
 export { RecurrencesPageClient } from "@/components/tasks/recurrences-page-client";
 export { TaskDialog } from "@/components/tasks/task-dialog";

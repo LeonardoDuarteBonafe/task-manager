@@ -12,6 +12,8 @@
   --surface-panel: rgba(255, 251, 245, 0.82);
   --surface-card: rgba(255, 255, 255, 0.72);
   --surface-elevated: rgba(255, 255, 255, 0.9);
+  --recurrence-card-surface: rgba(255, 255, 255, 0.72);
+  --recurrence-sheet-surface: rgba(242, 236, 227, 0.96);
   --surface-contrast: #1f3042;
   --surface-accent: #b84f2f;
   --surface-accent-strong: #9f4023;
@@ -35,6 +37,8 @@
   --surface-panel: rgba(28, 32, 37, 0.82);
   --surface-card: rgba(31, 36, 41, 0.78);
   --surface-elevated: rgba(39, 44, 50, 0.9);
+  --recurrence-card-surface: rgba(31, 36, 41, 0.78);
+  --recurrence-sheet-surface: rgba(31, 36, 41, 0.97);
   --surface-contrast: #f0e4d0;
   --surface-accent: #df7b4f;
   --surface-accent-strong: #f09567;

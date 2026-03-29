@@ -1,3 +1,4 @@
+import { getOccurrenceStatusTheme, getTaskStatusTheme } from "./status-theme";
 import type { OccurrenceDetailsDto, TaskDto } from "./types";
 
 const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -33,18 +34,7 @@ export function recurrenceLabel(input: {
 }
 
 export function taskStatusLabel(status: TaskDto["status"] | "ACTIVE" | "ENDED" | "CANCELED" | "ABORTED") {
-  switch (status) {
-    case "ACTIVE":
-      return "Ativa";
-    case "ENDED":
-      return "Finalizada";
-    case "CANCELED":
-      return "Cancelada";
-    case "ABORTED":
-      return "Abortada";
-    default:
-      return status;
-  }
+  return getTaskStatusTheme(status).label;
 }
 
 export function taskStatusWithDateLabel(task: Pick<TaskDto, "status" | "isEnded" | "endedAt" | "canceledAt" | "abortedAt">) {
@@ -59,9 +49,7 @@ export function taskStatusWithDateLabel(task: Pick<TaskDto, "status" | "isEnded"
 }
 
 export function occurrenceStatusLabel(status: "PENDING" | "COMPLETED" | "IGNORED", scheduledAt: string) {
-  if (status === "COMPLETED") return "Concluida";
-  if (status === "IGNORED") return "Ignorada";
-  return new Date(scheduledAt).getTime() < Date.now() ? "Vencida" : "Proxima";
+  return getOccurrenceStatusTheme({ status, scheduledAt, isEnded: status !== "PENDING" }).label;
 }
 
 export function occurrenceStatusWithDateLabel(
