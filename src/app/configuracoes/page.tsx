@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 
 export default function ConfiguracoesPage() {
   return (
-    <AppShell subtitle="Centro de configuracao para notificacoes e comportamento do PWA." title="Configuracoes">
+    <AppShell showPageHeader={false} subtitle="Centro de configuracao para notificacoes e comportamento do PWA." title="Configuracoes">
       <Card className="space-y-4">
         <div>
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-strong)]">Ambiente</p>

@@ -121,7 +121,7 @@ export default function MeuPerfilPage() {
 
   if (status === "loading") {
     return (
-      <AppShell subtitle="Aguarde..." title="Meu Perfil">
+      <AppShell showPageHeader={false} subtitle="Aguarde..." title="Meu Perfil">
         <PageState description="Verificando sessao..." title="Carregando" />
       </AppShell>
     );
@@ -129,14 +129,14 @@ export default function MeuPerfilPage() {
 
   if (!userId) {
     return (
-      <AppShell subtitle="Sem usuario local carregado." title="Meu Perfil">
+      <AppShell showPageHeader={false} subtitle="Sem usuario local carregado." title="Meu Perfil">
         <PageState description="Abra esta tela online ao menos uma vez com sessao valida para consultar os dados do perfil offline." title="Sessao indisponivel" />
       </AppShell>
     );
   }
 
   return (
-    <AppShell subtitle="Gerencie suas informacoes basicas de acesso." title="Meu Perfil">
+    <AppShell showPageHeader={false} subtitle="Gerencie suas informacoes basicas de acesso." title="Meu Perfil">
       {loading ? <PageState description="Carregando dados do usuario..." title="Carregando" /> : null}
 
       {!loading ? (

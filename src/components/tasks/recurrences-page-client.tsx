@@ -429,7 +429,7 @@ export function RecurrencesPageClient() {
 
   if (status === "loading") {
     return (
-      <AppShell subtitle="Aguarde..." title="Recorrencias">
+      <AppShell showPageHeader={false} subtitle="Aguarde..." title="Recorrencias">
         <PageState description="Carregando sessao..." title="Carregando" />
       </AppShell>
     );
@@ -437,14 +437,14 @@ export function RecurrencesPageClient() {
 
   if (!userId) {
     return (
-      <AppShell subtitle="Sem usuario local carregado." title="Recorrencias">
+      <AppShell showPageHeader={false} subtitle="Sem usuario local carregado." title="Recorrencias">
         <PageState description="Abra esta tela online ao menos uma vez com sessao ativa para liberar o modo offline local." title="Sessao indisponivel" />
       </AppShell>
     );
   }
 
   return (
-    <AppShell subtitle="Filtre, abra detalhes em modal e acompanhe o historico de cada recorrencia." title="Recorrencias">
+    <AppShell showPageHeader={false} subtitle="Filtre, abra detalhes em modal e acompanhe o historico de cada recorrencia." title="Recorrencias">
       <Card className="recurrence-filter-card overflow-visible p-3 sm:p-4">
         <div className="hidden md:block">
           <div className="flex w-full items-end gap-2">

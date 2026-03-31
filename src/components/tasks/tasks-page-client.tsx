@@ -1,18 +1,18 @@
 "use client";
 
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AppShell } from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { PageState } from "@/components/ui/page-state";
-import { Select } from "@/components/ui/select";
 import { buildMockTaskPage, createMockDataset } from "@/lib/mocks/task-data";
 import { isForcedUser } from "@/lib/mock-mode";
 import { endTaskOffline, loadTaskPageFromCache, syncTaskPageFromServer, synchronizeOfflineData, toggleTaskFavoriteOffline } from "@/lib/offline/offline-store";
 import { readOfflineLastUser } from "@/lib/offline/user-session";
+import { cn } from "@/lib/utils";
 import { TaskDialog } from "./task-dialog";
 import { type TaskFormValues } from "./task-form";
 import { TaskItem } from "./task-item";
@@ -23,6 +23,70 @@ type ModalState = {
   mode: "create" | "view" | "edit";
   taskId: string | null;
 };
+
+const STATUS_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "ACTIVE", label: "Ativas" },
+  { value: "ENDED", label: "Finalizadas" },
+  { value: "CANCELED", label: "Canceladas" },
+  { value: "ABORTED", label: "Abortadas" },
+  { value: "FAVORITES", label: "Favoritas" },
+] as const;
+
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+      <path d="M21 21l-4.35-4.35m1.6-5.15a6.75 6.75 0 11-13.5 0a6.75 6.75 0 0113.5 0z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function FilterField({
+  children,
+  className,
+  htmlFor,
+  label,
+}: {
+  children: ReactNode;
+  className?: string;
+  htmlFor?: string;
+  label: string;
+}) {
+  return (
+    <label className={cn("block min-w-0", className)} htmlFor={htmlFor}>
+      <span className="recurrence-filter-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function FilterTextInput({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={cn("recurrence-filter-input", className)} {...props} />;
+}
+
+function ChevronIcon() {
+  return (
+    <svg aria-hidden="true" className="h-3 w-3 opacity-70" fill="none" viewBox="0 0 24 24">
+      <path d="M6 9l6 6l6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function FilterSelect({ children, className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="recurrence-filter-select-shell">
+      <select className={cn("recurrence-filter-input recurrence-filter-select", className)} {...props}>
+        {children}
+      </select>
+      <span aria-hidden="true" className="recurrence-filter-select-icon">
+        <ChevronIcon />
+      </span>
+    </div>
+  );
+}
 
 function applyFavoriteToTaskPage(data: TaskPageDto | null, taskId: string, isFavorite: boolean, statusFilter: string) {
   if (!data) return data;
@@ -213,6 +277,33 @@ export function TasksPageClient() {
     syncUrl(1, draftStatus, draftCode, draftName);
   }
 
+  function clearFilters() {
+    setDraftStatus("");
+    setDraftCode("");
+    setDraftName("");
+    setViewState({ page: 1, status: "", code: "", name: "" });
+    syncUrl(1, "", "", "");
+  }
+
+  function handleCombinedTermChange(value: string) {
+    const trimmedValue = value.trim();
+
+    if (trimmedValue.length === 0) {
+      setDraftName("");
+      setDraftCode("");
+      return;
+    }
+
+    if (/^\d+$/.test(trimmedValue)) {
+      setDraftName("");
+      setDraftCode(trimmedValue);
+      return;
+    }
+
+    setDraftName(value);
+    setDraftCode("");
+  }
+
   function goToPage(nextPage: number) {
     setViewState((current) => {
       const next = { ...current, page: nextPage };
@@ -279,6 +370,7 @@ export function TasksPageClient() {
 
   const items = tasksData?.items ?? [];
   const totalPages = tasksData?.totalPages ?? 1;
+  const combinedTermValue = draftCode || draftName;
 
   async function handleMockCreate(values: TaskFormValues) {
     setMockTasks((current) => {
@@ -340,7 +432,7 @@ export function TasksPageClient() {
 
   if (status === "loading") {
     return (
-      <AppShell subtitle="Aguarde..." title="Tarefas">
+      <AppShell showPageHeader={false} subtitle="Aguarde..." title="Tarefas">
         <PageState description="Carregando sessao..." title="Carregando" />
       </AppShell>
     );
@@ -348,7 +440,7 @@ export function TasksPageClient() {
 
   if (!userId) {
     return (
-      <AppShell subtitle="Sem usuario local carregado." title="Tarefas">
+      <AppShell showPageHeader={false} subtitle="Sem usuario local carregado." title="Tarefas">
         <PageState description="Abra esta tela online ao menos uma vez com sessao ativa para liberar o modo offline local." title="Sessao indisponivel" />
       </AppShell>
     );
@@ -356,58 +448,47 @@ export function TasksPageClient() {
 
   return (
     <AppShell
-      actions={
-        <Button onClick={() => openModal("create")} type="button">
-          Nova tarefa
-        </Button>
-      }
+      showPageHeader={false}
       subtitle="Visualize tarefas maes, abra detalhes em modal e edite sem sair da listagem."
       title="Tarefas"
     >
-      <Card className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="w-full max-w-sm">
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Nome</label>
-            <Input onChange={(event) => setDraftName(event.target.value)} placeholder="Filtrar por nome" value={draftName} />
-          </div>
-          <div className="w-full max-w-xs">
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
-            <Select value={draftStatus} onChange={(event) => setDraftStatus(event.target.value)}>
-              <option value="">Todos</option>
-              <option value="ACTIVE">Ativas</option>
-              <option value="ENDED">Finalizadas</option>
-              <option value="CANCELED">Canceladas</option>
-              <option value="ABORTED">Abortadas</option>
-              <option value="FAVORITES">Favoritas</option>
-            </Select>
-          </div>
-          <div className="w-full max-w-xs">
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Codigo</label>
-            <Input
-              inputMode="numeric"
-              onChange={(event) => setDraftCode(event.target.value.replace(/\D/g, ""))}
-              placeholder="Ex.: 12"
-              value={draftCode}
+      <div className="flex justify-end">
+        <Button onClick={() => openModal("create")} type="button">
+          Nova tarefa
+        </Button>
+      </div>
+
+      <Card className="recurrence-filter-card overflow-visible p-3 sm:p-4">
+        <div className="flex flex-nowrap items-end gap-2">
+          <FilterField className="min-w-0 flex-[2_1_0%]" htmlFor="task-search" label="Nome ou codigo">
+            <FilterTextInput
+              id="task-search"
+              onChange={(event) => handleCombinedTermChange(event.target.value)}
+              placeholder="Ex.: Task offline, 24..."
+              value={combinedTermValue}
             />
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" onClick={applyFilter}>
-              Aplicar filtro
-            </Button>
-            <Button
-              onClick={() => {
-                setDraftStatus("");
-                setDraftCode("");
-                setDraftName("");
-                setViewState({ page: 1, status: "", code: "", name: "" });
-                syncUrl(1, "", "", "");
-              }}
-              type="button"
-              variant="secondary"
-            >
-              Limpar
-            </Button>
-          </div>
+          </FilterField>
+
+          <FilterField className="min-w-0 flex-[1.1_1_0%]" htmlFor="task-status" label="Status">
+            <FilterSelect id="task-status" value={draftStatus} onChange={(event) => setDraftStatus(event.target.value)}>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value || "all"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+
+          <Button className="shrink-0" onClick={applyFilter} type="button">
+            <span className="inline-flex items-center gap-2">
+              <SearchIcon />
+              Buscar
+            </span>
+          </Button>
+
+          <Button className="shrink-0" onClick={clearFilters} type="button" variant="secondary">
+            Limpar
+          </Button>
         </div>
       </Card>
 
