@@ -128,8 +128,8 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
   );
 
   return (
-    <main className="flex min-h-screen w-full overflow-hidden">
-      <aside className="hidden h-screen w-80 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--surface-panel)] px-5 py-5 backdrop-blur md:block">
+    <main className="min-h-screen w-full md:pl-80">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden h-screen w-80 shrink-0 border-r border-[var(--border-subtle)] bg-[var(--surface-panel)] px-5 py-5 backdrop-blur md:block">
         {navigation}
       </aside>
 
@@ -142,7 +142,7 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
         </div>
       ) : null}
 
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <section className="flex min-w-0 flex-col overflow-hidden">
         <header className="border-b border-[var(--border-subtle)] bg-[var(--surface-panel)] px-4 py-3 backdrop-blur md:px-6">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">

@@ -25,6 +25,18 @@
     radial-gradient(circle at top left, rgba(184, 79, 47, 0.2), transparent 28%),
     radial-gradient(circle at 82% 16%, rgba(31, 58, 95, 0.18), transparent 25%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 48%);
+  --recurrence-filter-panel: rgba(255, 251, 245, 0.72);
+  --recurrence-filter-toggle: rgba(255, 251, 245, 0.8);
+  --recurrence-filter-field-bg: rgba(255, 255, 255, 0.78);
+  --recurrence-filter-field-border: rgba(65, 49, 32, 0.14);
+  --recurrence-filter-field-text: rgba(28, 36, 48, 0.82);
+  --recurrence-filter-placeholder: rgba(28, 36, 48, 0.34);
+  --recurrence-filter-label: rgba(28, 36, 48, 0.54);
+  --recurrence-filter-clear-text: rgba(28, 36, 48, 0.38);
+  --recurrence-filter-more-text: rgba(28, 36, 48, 0.58);
+  --recurrence-filter-option-bg: #fffaf3;
+  --recurrence-filter-option-text: #1c2430;
+  --recurrence-filter-calendar: none;
 }
 
 .dark {
@@ -50,6 +62,18 @@
     radial-gradient(circle at top left, rgba(223, 123, 79, 0.16), transparent 26%),
     radial-gradient(circle at 82% 16%, rgba(130, 170, 214, 0.16), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 48%);
+  --recurrence-filter-panel: rgba(31, 36, 41, 0.78);
+  --recurrence-filter-toggle: rgba(31, 36, 41, 0.78);
+  --recurrence-filter-field-bg: rgba(255, 255, 255, 0.05);
+  --recurrence-filter-field-border: rgba(255, 255, 255, 0.1);
+  --recurrence-filter-field-text: rgba(255, 255, 255, 0.7);
+  --recurrence-filter-placeholder: rgba(255, 255, 255, 0.25);
+  --recurrence-filter-label: rgba(255, 255, 255, 0.38);
+  --recurrence-filter-clear-text: rgba(255, 255, 255, 0.32);
+  --recurrence-filter-more-text: rgba(255, 255, 255, 0.5);
+  --recurrence-filter-option-bg: #f7f7f6;
+  --recurrence-filter-option-text: #1b1d21;
+  --recurrence-filter-calendar: invert(1);
 }
 
 html,
@@ -149,5 +173,212 @@ textarea {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.task-favorite-button {
+  transform-origin: center;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.task-favorite-button.is-favoriting {
+  animation: task-favorite-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.task-favorite-button.is-unfavoriting {
+  animation: task-favorite-reset 180ms ease-out;
+}
+
+.recurrence-filter-card {
+  background: var(--recurrence-filter-panel);
+}
+
+.recurrence-filter-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--recurrence-filter-label);
+}
+
+.recurrence-filter-input {
+  width: 100%;
+  min-height: 37px;
+  border-radius: 8px;
+  border: 1px solid var(--recurrence-filter-field-border);
+  background: var(--recurrence-filter-field-bg);
+  padding: 7px 11px;
+  font-size: 12px;
+  color: var(--recurrence-filter-field-text);
+  outline: none;
+  box-shadow: none;
+}
+
+.recurrence-filter-input::placeholder {
+  color: var(--recurrence-filter-placeholder);
+}
+
+.recurrence-filter-input:focus {
+  border-color: rgba(29, 158, 117, 0.5);
+  box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.12);
+}
+
+.recurrence-filter-date::-webkit-calendar-picker-indicator {
+  opacity: 0.74;
+  filter: var(--recurrence-filter-calendar);
+}
+
+.recurrence-filter-select-shell {
+  position: relative;
+}
+
+.recurrence-filter-select {
+  appearance: none;
+  padding-right: 34px;
+}
+
+.recurrence-filter-select-icon {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--recurrence-filter-field-text);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.recurrence-filter-select option {
+  background: var(--recurrence-filter-option-bg);
+  color: var(--recurrence-filter-option-text);
+}
+
+.recurrence-filter-button {
+  display: inline-flex;
+  min-height: 37px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.recurrence-filter-button-search {
+  background: rgba(29, 158, 117, 0.22);
+  border-color: rgba(29, 158, 117, 0.38);
+  color: #4dcca8;
+}
+
+.recurrence-filter-button-clear {
+  background: transparent;
+  border-color: var(--recurrence-filter-field-border);
+  color: var(--recurrence-filter-clear-text);
+}
+
+.recurrence-filter-button-more {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--recurrence-filter-more-text);
+}
+
+.recurrence-filter-button-more.is-active {
+  background: rgba(29, 158, 117, 0.12);
+  border-color: rgba(29, 158, 117, 0.3);
+  color: #4dcca8;
+}
+
+.recurrence-filter-mobile-toggle {
+  width: 100%;
+  justify-content: space-between;
+  border-radius: 11px;
+  border-color: var(--recurrence-filter-field-border);
+  background: var(--recurrence-filter-toggle);
+  padding: 0.65rem 0.85rem;
+  color: var(--recurrence-filter-field-text);
+}
+
+.recurrence-filter-mobile-toggle.is-active {
+  border-radius: 11px 11px 0 0;
+}
+
+.recurrence-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 158, 117, 0.3);
+  background: rgba(29, 158, 117, 0.2);
+  padding: 1px 6px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #4dcca8;
+}
+
+.recurrence-filter-desktop-panel {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 1rem 1rem 0;
+  animation: slideDown 180ms ease;
+}
+
+.recurrence-filter-mobile-panel {
+  border: 1px solid var(--recurrence-filter-field-border);
+  border-top: none;
+  border-radius: 0 0 11px 11px;
+  background: var(--recurrence-filter-toggle);
+  padding: 0.85rem;
+  animation: slideDown 180ms ease;
+}
+
+@media (max-width: 767px) {
+  .recurrence-filter-mobile-panel .recurrence-filter-input {
+    font-size: 11px;
+  }
+}
+
+@keyframes task-favorite-pop {
+  0% {
+    transform: scale(0.6) rotate(-15deg);
+  }
+
+  72% {
+    transform: scale(1.08) rotate(3deg);
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes task-favorite-reset {
+  0% {
+    transform: scale(0.96);
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
   }
 }
