@@ -8,6 +8,17 @@ type OfflineStatusProps = {
   compact?: boolean;
 };
 
+function isSynced(state: OfflineRuntimeState) {
+  return (
+    state.connectivity !== "offline" &&
+    state.syncPhase !== "bootstrapping" &&
+    state.syncPhase !== "syncing" &&
+    state.syncPhase !== "error" &&
+    state.pendingCount === 0 &&
+    state.failedCount === 0
+  );
+}
+
 function buildLabel(state: OfflineRuntimeState) {
   if (state.connectivity === "offline") {
     return state.pendingCount > 0 ? `Offline com ${state.pendingCount} alteracao(oes) pendente(s)` : "Offline usando dados locais";
@@ -68,14 +79,25 @@ export function OfflineStatus({ compact = false }: OfflineStatusProps) {
   const detail = state.lastSyncAt ? `Ultimo sync: ${new Date(state.lastSyncAt).toLocaleString("pt-BR")}` : state.lastSyncError;
   const title = detail ? `${label} - ${detail}` : label;
   const tone = buildTone(state);
+  const synced = isSynced(state);
 
   if (compact) {
     return (
       <div aria-label={label} className={`flex h-11 w-full items-center justify-center rounded-2xl border ${tone}`} title={title}>
-        <span className="relative inline-flex h-3 w-3">
-          <span className="absolute inset-0 rounded-full bg-current opacity-25" />
-          <span className="relative rounded-full bg-current" />
-        </span>
+        <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+          <path d="M6 10a6 6 0 0 1 6-6h3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+          <path d="m13.5 2.75 3 1.5-1.5 3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+          <path d="M18 14a6 6 0 0 1-6 6H9" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+          <path d="m10.5 21.25-3-1.5 1.5-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+          {synced ? (
+            <path d="m9 12.4 2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+          ) : (
+            <>
+              <path d="M12 9v4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+              <circle cx="12" cy="16.25" fill="currentColor" r="1" />
+            </>
+          )}
+        </svg>
       </div>
     );
   }

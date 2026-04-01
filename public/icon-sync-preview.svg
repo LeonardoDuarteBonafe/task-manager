@@ -1,0 +1,68 @@
+<svg width="900" height="520" viewBox="0 0 900 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="520" rx="28" fill="#171B1F"/>
+  <text x="40" y="56" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="28" font-weight="700">Sugestoes de icones para sync</text>
+  <text x="40" y="88" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="16">Visual pensado para sidebar colapsada: simples, legivel e com bom contraste.</text>
+
+  <g transform="translate(40 130)">
+    <rect width="250" height="320" rx="26" fill="#1F2429" stroke="#313841"/>
+    <text x="28" y="42" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="20" font-weight="700">Opcao 1</text>
+    <text x="28" y="68" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">Setas circulares</text>
+
+    <circle cx="82" cy="150" r="42" fill="#223227" stroke="#2F9E75"/>
+    <path d="M67 148C67 138.611 74.6112 131 84 131H101" stroke="#4DCCA8" stroke-width="10" stroke-linecap="round"/>
+    <path d="M94 122L104 131L94 140" stroke="#4DCCA8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M101 152C101 161.389 93.3888 169 84 169H67" stroke="#4DCCA8" stroke-width="10" stroke-linecap="round"/>
+    <path d="M74 178L64 169L74 160" stroke="#4DCCA8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M78 150L84 156L94 144" stroke="#E8FFF6" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="140" y="148" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="18" font-weight="700">Sincronizado</text>
+    <text x="140" y="174" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">bom para contexto</text>
+
+    <circle cx="82" cy="246" r="42" fill="#39271F" stroke="#DF7B4F"/>
+    <path d="M67 244C67 234.611 74.6112 227 84 227H101" stroke="#FFB087" stroke-width="10" stroke-linecap="round"/>
+    <path d="M94 218L104 227L94 236" stroke="#FFB087" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M101 248C101 257.389 93.3888 265 84 265H67" stroke="#FFB087" stroke-width="10" stroke-linecap="round"/>
+    <path d="M74 274L64 265L74 256" stroke="#FFB087" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M84 238V249" stroke="#FFF4EE" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="84" cy="258" r="4.5" fill="#FFF4EE"/>
+    <text x="140" y="244" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="18" font-weight="700">Desincronizado</text>
+    <text x="140" y="270" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">minha recomendacao</text>
+  </g>
+
+  <g transform="translate(325 130)">
+    <rect width="250" height="320" rx="26" fill="#1F2429" stroke="#313841"/>
+    <text x="28" y="42" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="20" font-weight="700">Opcao 2</text>
+    <text x="28" y="68" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">Nuvem + status</text>
+
+    <circle cx="82" cy="150" r="42" fill="#223227" stroke="#2F9E75"/>
+    <path d="M66 160C58 160 52 154 52 146C52 138.5 57.4 132.2 64.6 131C67.6 122.2 76 116 86 116C97.9 116 107.6 124.6 108.9 135.9C116.3 136.8 122 143.1 122 150.8C122 159.1 115.3 166 107 166H66V160Z" fill="#4DCCA8"/>
+    <path d="M72 147L81 156L96 141" stroke="#173B2B" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="140" y="148" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="18" font-weight="700">Sincronizado</text>
+    <text x="140" y="174" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">mais amigavel</text>
+
+    <circle cx="82" cy="246" r="42" fill="#39271F" stroke="#DF7B4F"/>
+    <path d="M66 256C58 256 52 250 52 242C52 234.5 57.4 228.2 64.6 227C67.6 218.2 76 212 86 212C97.9 212 107.6 220.6 108.9 231.9C116.3 232.8 122 239.1 122 246.8C122 255.1 115.3 262 107 262H66V256Z" fill="#FFB087"/>
+    <path d="M86 229V241" stroke="#4C2415" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="86" cy="250" r="4.5" fill="#4C2415"/>
+    <text x="140" y="244" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="18" font-weight="700">Desincronizado</text>
+    <text x="140" y="270" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">mais intuitivo</text>
+  </g>
+
+  <g transform="translate(610 130)">
+    <rect width="250" height="320" rx="26" fill="#1F2429" stroke="#313841"/>
+    <text x="28" y="42" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="20" font-weight="700">Opcao 3</text>
+    <text x="28" y="68" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">Minimalista</text>
+
+    <circle cx="82" cy="150" r="42" fill="#223227" stroke="#2F9E75"/>
+    <circle cx="82" cy="150" r="20" fill="#4DCCA8"/>
+    <path d="M73 150L80 157L92 144" stroke="#173B2B" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="140" y="148" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="18" font-weight="700">Sincronizado</text>
+    <text x="140" y="174" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">mais limpo</text>
+
+    <circle cx="82" cy="246" r="42" fill="#39271F" stroke="#DF7B4F"/>
+    <circle cx="82" cy="246" r="20" fill="#FFB087"/>
+    <path d="M82 234V245" stroke="#4C2415" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="82" cy="254" r="4.5" fill="#4C2415"/>
+    <text x="140" y="244" fill="#ECE4D8" font-family="Arial, sans-serif" font-size="18" font-weight="700">Desincronizado</text>
+    <text x="140" y="270" fill="#B8AE9F" font-family="Arial, sans-serif" font-size="14">o mais discreto</text>
+  </g>
+</svg>
