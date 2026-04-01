@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { getOfflineRuntimeSnapshot, hydrateOfflineRuntimeState } from "@/lib/offline/offline-store";
 import { OFFLINE_RUNTIME_EVENT, type OfflineRuntimeState } from "@/lib/offline/events";
 
+type OfflineStatusProps = {
+  compact?: boolean;
+};
+
 function buildLabel(state: OfflineRuntimeState) {
   if (state.connectivity === "offline") {
     return state.pendingCount > 0 ? `Offline com ${state.pendingCount} alteracao(oes) pendente(s)` : "Offline usando dados locais";
@@ -40,7 +44,7 @@ function buildTone(state: OfflineRuntimeState) {
   return "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100";
 }
 
-export function OfflineStatus() {
+export function OfflineStatus({ compact = false }: OfflineStatusProps) {
   const [state, setState] = useState<OfflineRuntimeState>(getOfflineRuntimeSnapshot());
 
   useEffect(() => {
@@ -60,9 +64,25 @@ export function OfflineStatus() {
     };
   }, []);
 
+  const label = buildLabel(state);
+  const detail = state.lastSyncAt ? `Ultimo sync: ${new Date(state.lastSyncAt).toLocaleString("pt-BR")}` : state.lastSyncError;
+  const title = detail ? `${label} - ${detail}` : label;
+  const tone = buildTone(state);
+
+  if (compact) {
+    return (
+      <div aria-label={label} className={`flex h-11 w-full items-center justify-center rounded-2xl border ${tone}`} title={title}>
+        <span className="relative inline-flex h-3 w-3">
+          <span className="absolute inset-0 rounded-full bg-current opacity-25" />
+          <span className="relative rounded-full bg-current" />
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className={`rounded-2xl border px-3 py-2 text-xs font-medium ${buildTone(state)}`}>
-      <p>{buildLabel(state)}</p>
+    <div className={`rounded-2xl border px-3 py-2 text-xs font-medium ${tone}`}>
+      <p>{label}</p>
       {state.lastSyncAt ? <p className="mt-1 opacity-80">Ultimo sync: {new Date(state.lastSyncAt).toLocaleString("pt-BR")}</p> : null}
       {state.lastSyncError ? <p className="mt-1 opacity-80">{state.lastSyncError}</p> : null}
     </div>
