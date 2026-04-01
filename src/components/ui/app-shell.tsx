@@ -33,6 +33,14 @@ type NavLink = {
 
 const SIDEBAR_STORAGE_KEY = "taskmanager-sidebar-collapsed";
 
+function readStoredSidebarCollapsed() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+}
+
 function DashboardIcon(props: IconProps) {
   return (
     <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" {...props}>
@@ -203,18 +211,13 @@ export function AppShell({ title, subtitle, actions, children, showPageHeader = 
   const { data } = useSession();
   const [offlineSession, setOfflineSession] = useState(() => readOfflineAuthSession());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStoredSidebarCollapsed());
   const effectiveUser = data?.user ?? offlineSession?.user;
   const forcedMode = isForcedUser(data?.user ?? undefined);
 
   useEffect(() => {
     setOfflineSession(readOfflineAuthSession());
   }, [data?.user?.email, data?.user?.id, data?.user?.image, data?.user?.name]);
-
-  useEffect(() => {
-    const storedValue = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    setSidebarCollapsed(storedValue === "true");
-  }, []);
 
   const userLabel = useMemo(() => effectiveUser?.name || effectiveUser?.email || "Usuario", [effectiveUser?.email, effectiveUser?.name]);
 
